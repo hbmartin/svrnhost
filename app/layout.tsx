@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Cinzel, Raleway } from "next/font/google";
 import { Toaster } from "sonner";
 import { ThemeProvider } from "next-themes";
 
@@ -7,24 +7,24 @@ import "./globals.css";
 import { SessionProvider } from "next-auth/react";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://chat.vercel.ai"),
-  title: "SVRN Host",
+  metadataBase: new URL("https://svrnhost.vercel.app/"),
+  title: "SVRN AI Studio",
 };
 
 export const viewport = {
   maximumScale: 1, // Disable auto-zoom on mobile Safari
 };
 
-const geist = Geist({
+const cinzel = Cinzel({
   subsets: ["latin"],
   display: "swap",
-  variable: "--font-geist",
+  variable: "--font-cinzel",
 });
 
-const geistMono = Geist_Mono({
+const raleway = Raleway({
   subsets: ["latin"],
   display: "swap",
-  variable: "--font-geist-mono",
+  variable: "--font-raleway",
 });
 
 const LIGHT_THEME_COLOR = "hsl(0 0% 100%)";
@@ -54,7 +54,7 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      className={`${geist.variable} ${geistMono.variable}`}
+      className={`${cinzel.variable} ${raleway.variable}`}
       // `next-themes` injects an extra classname to the body element to avoid
       // visual flicker before hydration. Hence the `suppressHydrationWarning`
       // prop is necessary to avoid the React hydration mismatch warning.

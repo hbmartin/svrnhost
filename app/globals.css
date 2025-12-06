@@ -89,8 +89,9 @@
 
 /* define theme */
 @theme {
-  --font-sans: var(--font-geist);
-  --font-mono: var(--font-geist-mono);
+  --font-serif: var(--font-cinzel);
+  --font-sans: var(--font-raleway);
+  --font-mono: var(--font-raleway);
 
   --breakpoint-toast-mobile: 600px;
 

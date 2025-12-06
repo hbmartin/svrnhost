@@ -1,9 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
-import { guestRegex, isDevelopmentEnvironment } from "./lib/constants";
+import { isDevelopmentEnvironment } from "./lib/constants";
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const publicRoutes = ["/login"];
 
   /*
    * Playwright starts the dev server and requires a 200 status to
@@ -24,17 +25,26 @@ export async function proxy(request: NextRequest) {
   });
 
   if (!token) {
-    const redirectUrl = encodeURIComponent(request.url);
+    if (publicRoutes.includes(pathname)) {
+      return NextResponse.next();
+    }
 
-    return NextResponse.redirect(
-      new URL(`/api/auth/guest?redirectUrl=${redirectUrl}`, request.url)
-    );
+    const loginUrl = new URL("/login", request.url);
+    const requestedPath = `${request.nextUrl.pathname}${request.nextUrl.search}`;
+
+    if (requestedPath && requestedPath !== "/login") {
+      loginUrl.searchParams.set("redirectUrl", requestedPath);
+    }
+
+    return NextResponse.redirect(loginUrl);
   }
 
-  const isGuest = guestRegex.test(token?.email ?? "");
+  if (token && publicRoutes.includes(pathname)) {
+    const redirectParam = request.nextUrl.searchParams.get("redirectUrl");
+    const redirectTarget =
+      redirectParam && redirectParam.startsWith("/") ? redirectParam : "/";
 
-  if (token && !isGuest && ["/login", "/register"].includes(pathname)) {
-    return NextResponse.redirect(new URL("/", request.url));
+    return NextResponse.redirect(new URL(redirectTarget, request.url));
   }
 
   return NextResponse.next();
