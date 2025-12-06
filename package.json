@@ -19,10 +19,10 @@
     "nb": "next build"
   },
   "dependencies": {
-    "@ai-sdk/gateway": "^2.0.18",
+    "@ai-sdk/anthropic": "^2.0.53",
+    "@ai-sdk/openai": "^2.0.77",
     "@ai-sdk/provider": "2.0.0",
-    "@ai-sdk/react": "2.0.107",
-    "@ai-sdk/xai": "2.0.39",
+    "@ai-sdk/react": "2.0.108",
     "@codemirror/lang-javascript": "^6.2.4",
     "@codemirror/lang-python": "^6.2.1",
     "@codemirror/state": "^6.5.2",
@@ -39,7 +39,7 @@
     "@vercel/blob": "^2.0.0",
     "@vercel/functions": "^3.3.4",
     "@vercel/otel": "^2.1.0",
-    "ai": "5.0.107",
+    "ai": "5.0.108",
     "bcrypt-ts": "^8.0.0",
     "class-variance-authority": "^0.7.1",
     "classnames": "^2.5.1",

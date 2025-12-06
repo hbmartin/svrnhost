@@ -1,7 +1,8 @@
-import { gateway } from "@ai-sdk/gateway";
+import { anthropic } from "@ai-sdk/anthropic";
+import { openai } from "@ai-sdk/openai";
 import {
   customProvider,
-  extractReasoningMiddleware,
+  defaultSettingsMiddleware,
   wrapLanguageModel,
 } from "ai";
 import { isTestEnvironment } from "../constants";
@@ -25,12 +26,21 @@ export const myProvider = isTestEnvironment
     })()
   : customProvider({
       languageModels: {
-        "chat-model": gateway.languageModel("xai/grok-2-vision-1212"),
+        "chat-model": openai.languageModel("chatgpt-4o-latest"),
         "chat-model-reasoning": wrapLanguageModel({
-          model: gateway.languageModel("xai/grok-3-mini"),
-          middleware: extractReasoningMiddleware({ tagName: "think" }),
+          model: anthropic.languageModel("claude-3-7-sonnet-latest"),
+          middleware: defaultSettingsMiddleware({
+            settings: {
+              providerOptions: {
+                anthropic: {
+                  thinking: { type: "enabled" },
+                  sendReasoning: true,
+                },
+              },
+            },
+          }),
         }),
-        "title-model": gateway.languageModel("xai/grok-2-1212"),
-        "artifact-model": gateway.languageModel("xai/grok-2-1212"),
+        "title-model": openai.languageModel("gpt-4o-mini"),
+        "artifact-model": openai.languageModel("gpt-4o-mini"),
       },
     });

@@ -2,9 +2,10 @@ import { type NextRequest, NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
 import { isDevelopmentEnvironment } from "./lib/constants";
 
+const PUBLIC_ROUTES = new Set(["/login"]);
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const publicRoutes = ["/login"];
 
   /*
    * Playwright starts the dev server and requires a 200 status to
@@ -25,7 +26,7 @@ export async function proxy(request: NextRequest) {
   });
 
   if (!token) {
-    if (publicRoutes.includes(pathname)) {
+    if (PUBLIC_ROUTES.has(pathname)) {
       return NextResponse.next();
     }
 
@@ -39,7 +40,7 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  if (token && publicRoutes.includes(pathname)) {
+  if (token && PUBLIC_ROUTES.has(pathname)) {
     const redirectParam = request.nextUrl.searchParams.get("redirectUrl");
     const redirectTarget =
       redirectParam && redirectParam.startsWith("/") ? redirectParam : "/";
@@ -56,7 +57,6 @@ export const config = {
     "/chat/:id",
     "/api/:path*",
     "/login",
-    "/register",
 
     /*
      * Match all request paths except for the ones starting with:
