@@ -53,9 +53,8 @@ export class AuthPage {
     await expect(authMenuItem).toContainText("Sign out");
 
     await authMenuItem.click();
-
-    const userEmail = this.page.getByTestId("user-email");
-    await expect(userEmail).toContainText("Guest");
+    await this.page.waitForURL(/\/login/);
+    await expect(this.page.getByRole("heading")).toContainText("Sign In");
   }
 
   async expectToastToContain(text: string) {
