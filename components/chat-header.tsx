@@ -3,7 +3,6 @@
 import { useRouter } from "next/navigation";
 import { memo } from "react";
 import { useWindowSize } from "usehooks-ts";
-import { useSidebar } from "./ui/sidebar";
 import { useTheme } from "next-themes";
 
 function PureChatHeader({
@@ -14,7 +13,6 @@ function PureChatHeader({
   isReadonly: boolean;
 }) {
   const router = useRouter();
-  const { open } = useSidebar();
   const { setTheme, resolvedTheme } = useTheme()
 
   const { width: windowWidth } = useWindowSize();
