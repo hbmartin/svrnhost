@@ -15,7 +15,6 @@ import {
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import type { ArtifactKind } from "@/components/artifact";
-import type { VisibilityType } from "@/components/visibility-selector";
 import { ChatSDKError } from "../errors";
 import type { AppUsage } from "../usage";
 import { generateUUID } from "../utils";
@@ -84,12 +83,10 @@ export async function saveChat({
   id,
   userId,
   title,
-  visibility,
 }: {
   id: string;
   userId: string;
   title: string;
-  visibility: VisibilityType;
 }) {
   try {
     return await db.insert(chat).values({
@@ -97,7 +94,6 @@ export async function saveChat({
       createdAt: new Date(),
       userId,
       title,
-      visibility,
     });
   } catch (_error) {
     throw new ChatSDKError("bad_request:database", "Failed to save chat");

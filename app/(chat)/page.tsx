@@ -35,7 +35,6 @@ async function NewChatPage() {
           id={id}
           initialChatModel={DEFAULT_CHAT_MODEL}
           initialMessages={[]}
-          initialVisibilityType="private"
           isReadonly={false}
           key={id}
         />
@@ -50,9 +49,7 @@ async function NewChatPage() {
         autoResume={false}
         id={id}
         initialChatModel={modelIdFromCookie.value}
-        initialMessages={[]}
-        initialVisibilityType="private"
-        isReadonly={false}
+        initialMessages={[]}        isReadonly={false}
         key={id}
       />
       <DataStreamHandler />

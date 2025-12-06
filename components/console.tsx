@@ -163,23 +163,12 @@ export function Console({ consoleOutputs, setConsoleOutputs }: ConsoleProps) {
               ) : (
                 <div className="flex w-full flex-col gap-2 overflow-x-scroll text-zinc-900 dark:text-zinc-50">
                   {consoleOutput.contents.map((content, contentIndex) =>
-                    content.type === "image" ? (
-                      <picture key={`${consoleOutput.id}-${contentIndex}`}>
-                        {/** biome-ignore lint/nursery/useImageSize: "Generated image without explicit size" */}
-                        <img
-                          alt="output"
-                          className="w-full max-w-(--breakpoint-toast-mobile) rounded-md"
-                          src={content.value}
-                        />
-                      </picture>
-                    ) : (
-                      <div
-                        className="w-full whitespace-pre-line break-words"
-                        key={`${consoleOutput.id}-${contentIndex}`}
-                      >
-                        {content.value}
-                      </div>
-                    )
+                    <div
+                      className="w-full whitespace-pre-line break-words"
+                      key={`${consoleOutput.id}-${contentIndex}`}
+                    >
+                      {content.value}
+                    </div>
                   )}
                 </div>
               )}

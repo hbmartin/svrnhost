@@ -102,9 +102,7 @@ export const updateDocumentPrompt = (
 ) => {
   let mediaType = "document";
 
-  if (type === "code") {
-    mediaType = "code snippet";
-  } else if (type === "sheet") {
+  if (type === "sheet") {
     mediaType = "spreadsheet";
   }
 
