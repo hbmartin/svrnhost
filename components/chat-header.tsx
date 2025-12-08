@@ -1,7 +1,7 @@
 "use client";
 
 import { Moon as MoonIcon, Sun as SunIcon } from "lucide-react";
-import { memo } from "react";
+import { memo, useEffect, useState } from "react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 
@@ -12,10 +12,12 @@ function PureChatHeader({
   chatId: string;
   isReadonly: boolean;
 }) {
+  const [mounted, setMounted] = useState(false);
   const { resolvedTheme, setTheme } = useTheme();
-  const currentTheme = resolvedTheme ?? "light";
-  const isDarkMode = currentTheme === "dark";
-  const nextTheme = isDarkMode ? "light" : "dark";
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   return (
     <header
@@ -27,23 +29,31 @@ function PureChatHeader({
       <span className="text-base font-semibold tracking-tight">
         SVRN AI Studio
       </span>
-      <Button
-        aria-label={`Switch to ${nextTheme} theme`}
-        onClick={() => {
-          setTheme(nextTheme);
-        }}
-        size="icon"
-        title={`Switch to ${nextTheme} theme`}
-        type="button"
-        variant="ghost"
-      >
-        {isDarkMode ? (
-          <SunIcon aria-hidden="true" className="size-4" />
-        ) : (
-          <MoonIcon aria-hidden="true" className="size-4" />
-        )}
-        <span className="sr-only">Toggle light or dark appearance</span>
-      </Button>
+      {mounted ? (
+        (() => {
+          const isDarkMode = resolvedTheme === "dark";
+          const nextTheme = isDarkMode ? "light" : "dark";
+          return (
+            <Button
+              aria-label={`Switch to ${nextTheme} theme`}
+              onClick={() => setTheme(nextTheme)}
+              size="icon"
+              title={`Switch to ${nextTheme} theme`}
+              type="button"
+              variant="ghost"
+            >
+              {isDarkMode ? (
+                <SunIcon aria-hidden="true" className="size-4" />
+              ) : (
+                <MoonIcon aria-hidden="true" className="size-4" />
+              )}
+              <span className="sr-only">Toggle light or dark appearance</span>
+            </Button>
+          );
+        })()
+      ) : (
+        <div className="h-10 w-10" />
+      )}
     </header>
   );
 }

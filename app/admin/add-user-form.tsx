@@ -55,7 +55,10 @@ export function AddUserForm() {
 
   return (
     <AuthForm action={handleSubmit} defaultEmail={email}>
-      <SubmitButton isSuccessful={state.status === "success"}>
+      <SubmitButton
+        disableOnSuccess={false}
+        isSuccessful={state.status === "success"}
+      >
         Add user
       </SubmitButton>
     </AuthForm>
