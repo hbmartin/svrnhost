@@ -23,10 +23,19 @@ const logProviderConfig = () => {
 		),
 	};
 
-	if (!providerConfigSnapshot.hasOpenAiKey || !providerConfigSnapshot.hasAnthropicKey) {
-		console.warn("[ai:providers] Missing API credentials", providerConfigSnapshot);
+	if (
+		!providerConfigSnapshot.hasOpenAiKey ||
+		!providerConfigSnapshot.hasAnthropicKey
+	) {
+		console.warn(
+			"[ai:providers] Missing API credentials",
+			providerConfigSnapshot,
+		);
 	} else {
-		console.log("[ai:providers] Provider credentials detected", providerConfigSnapshot);
+		console.log(
+			"[ai:providers] Provider credentials detected",
+			providerConfigSnapshot,
+		);
 	}
 
 	hasLoggedProviderConfig = true;

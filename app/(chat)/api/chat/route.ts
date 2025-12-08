@@ -86,6 +86,24 @@ export function getStreamContext() {
 
 export async function POST(request: Request) {
 	let requestBody: PostRequestBody;
+	let requestMetadata: { chatId?: string; selectedChatModel?: string } = {};
+	let sessionUserId: string | undefined;
+	let streamId: string | undefined;
+
+	const logChatEvent = (stage: string, props: Record<string, unknown> = {}) => {
+		try {
+			console.log("[chat:post]", stage, {
+				...requestMetadata,
+				sessionUserId,
+				streamId,
+				nodeEnv: process.env.NODE_ENV,
+				vercelEnv: process.env.VERCEL_ENV,
+				...props,
+			});
+		} catch {
+			// Logging must never break the handler
+		}
+	};
 
 	try {
 		const json = await request.json();
@@ -105,7 +123,25 @@ export async function POST(request: Request) {
 			selectedChatModel: ChatModel["id"];
 		} = requestBody;
 
+		requestMetadata = {
+			chatId: id,
+			selectedChatModel,
+		};
+
+		logChatEvent("request_parsed", {
+			messagePartCount: message.parts.length,
+			attachmentCount: Array.isArray(message.attachments)
+				? message.attachments.length
+				: 0,
+		});
+
 		const session = await auth();
+		sessionUserId = session?.user?.id;
+
+		logChatEvent("session_checked", {
+			hasSession: Boolean(session?.user),
+			userType: session?.user?.type,
+		});
 
 		if (!session?.user) {
 			return new ChatSDKError("unauthorized:chat").toResponse();
@@ -118,15 +154,31 @@ export async function POST(request: Request) {
 			differenceInHours: 24,
 		});
 
-		if (messageCount > entitlementsByUserType[userType].maxMessagesPerDay) {
+		const maxMessagesPerDay =
+			entitlementsByUserType[userType].maxMessagesPerDay;
+
+		logChatEvent("quota_checked", {
+			messageCount,
+			maxMessagesPerDay,
+		});
+
+		if (messageCount > maxMessagesPerDay) {
+			logChatEvent("rate_limited", { messageCount });
 			return new ChatSDKError("rate_limit:chat").toResponse();
 		}
 
 		const chat = await getChatById({ id });
 		let messagesFromDb: DBMessage[] = [];
 
+		logChatEvent("chat_lookup_complete", {
+			chatExists: Boolean(chat),
+		});
+
 		if (chat) {
 			if (chat.userId !== session.user.id) {
+				logChatEvent("chat_access_denied", {
+					chatOwnerId: chat.userId,
+				});
 				return new ChatSDKError("forbidden:chat").toResponse();
 			}
 			// Only fetch messages if chat already exists
@@ -142,6 +194,7 @@ export async function POST(request: Request) {
 				title,
 			});
 			// New chat - no need to fetch messages, it's empty
+			logChatEvent("chat_created", { titleLength: title.length });
 		}
 
 		const uiMessages = [...convertToUIMessages(messagesFromDb), message];
@@ -168,13 +221,30 @@ export async function POST(request: Request) {
 			],
 		});
 
-		const streamId = generateUUID();
-		await createStreamId({ streamId, chatId: id });
+		logChatEvent("user_message_saved", {
+			messageId: message.id,
+			priorMessageCount: messagesFromDb.length,
+		});
+
+		const newStreamId = generateUUID();
+		streamId = newStreamId;
+		await createStreamId({ streamId: newStreamId, chatId: id });
+
+		logChatEvent("stream_id_created", {
+			streamId: newStreamId,
+		});
 
 		let finalMergedUsage: AppUsage | undefined;
 
 		const stream = createUIMessageStream({
 			execute: ({ writer: dataStream }) => {
+				logChatEvent("starting_stream_text", {
+					uiMessageCount: uiMessages.length,
+					selectedChatModel,
+					hasOpenAiKey: Boolean(process.env.OPENAI_API_KEY),
+					hasAnthropicKey: Boolean(process.env.ANTHROPIC_API_KEY),
+				});
+
 				const result = streamText({
 					model: myProvider.languageModel(selectedChatModel),
 					system: systemPrompt({ selectedChatModel, requestHints }),
@@ -258,6 +328,10 @@ export async function POST(request: Request) {
 					})),
 				});
 
+				logChatEvent("assistant_messages_saved", {
+					assistantMessageCount: messages.length,
+				});
+
 				if (finalMergedUsage) {
 					try {
 						await updateChatLastContextById({
@@ -269,7 +343,13 @@ export async function POST(request: Request) {
 					}
 				}
 			},
-			onError: () => {
+			onError: (streamError) => {
+				logChatEvent("ui_stream_error", {
+					errorMessage:
+						streamError instanceof Error
+							? streamError.message
+							: String(streamError),
+				});
 				return "Oops, an error occurred!";
 			},
 		});
@@ -287,8 +367,17 @@ export async function POST(request: Request) {
 		return new Response(stream.pipeThrough(new JsonToSseTransformStream()));
 	} catch (error) {
 		const vercelId = request.headers.get("x-vercel-id");
+		const errorContext = {
+			vercelId,
+			...requestMetadata,
+			sessionUserId,
+			streamId,
+		};
 
 		if (error instanceof ChatSDKError) {
+			logChatEvent("handled_chat_sdk_error", {
+				errorCode: error.code,
+			});
 			return error.toResponse();
 		}
 
@@ -299,10 +388,11 @@ export async function POST(request: Request) {
 				"AI Gateway requires a valid credit card on file to service requests",
 			)
 		) {
+			logChatEvent("gateway_credit_card_error");
 			return new ChatSDKError("bad_request:activate_gateway").toResponse();
 		}
 
-		console.error("Unhandled error in chat API:", error, { vercelId });
+		console.error("Unhandled error in chat API:", error, errorContext);
 		return new ChatSDKError("offline:chat").toResponse();
 	}
 }
