@@ -62,9 +62,9 @@ export const myProvider = isTestEnvironment
 		})()
 	: customProvider({
 			languageModels: {
-				"chat-model": openai.languageModel("chatgpt-4o-latest"),
+				"chat-model": openai.languageModel("gpt-5-mini"),
 				"chat-model-reasoning": wrapLanguageModel({
-					model: anthropic.languageModel("claude-3-7-sonnet-latest"),
+					model: anthropic.languageModel("claude-haiku-4-5"),
 					middleware: defaultSettingsMiddleware({
 						settings: {
 							providerOptions: {
