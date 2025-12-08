@@ -2,15 +2,15 @@ import { Suspense } from "react";
 import { DataStreamProvider } from "@/components/data-stream-provider";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  return (
-    <>
-      <DataStreamProvider>
-        <Suspense fallback={<div className="flex h-dvh" />}>
-          {children}
-        </Suspense>
-      </DataStreamProvider>
-    </>
-  );
+	return (
+		<>
+			<DataStreamProvider>
+				<Suspense fallback={<div className="flex h-dvh" />}>
+					{children}
+				</Suspense>
+			</DataStreamProvider>
+		</>
+	);
 }
 
 // async function SidebarWrapper({ children }: { children: React.ReactNode }) {

@@ -5,36 +5,36 @@ import { cookies } from "next/headers";
 import { titlePrompt } from "@/lib/ai/prompts";
 import { myProvider } from "@/lib/ai/providers";
 import {
-  deleteMessagesByChatIdAfterTimestamp,
-  getMessageById,
-  updateChatVisibilityById,
+	deleteMessagesByChatIdAfterTimestamp,
+	getMessageById,
+	updateChatVisibilityById,
 } from "@/lib/db/queries";
 import { getTextFromMessage } from "@/lib/utils";
 
 export async function saveChatModelAsCookie(model: string) {
-  const cookieStore = await cookies();
-  cookieStore.set("chat-model", model);
+	const cookieStore = await cookies();
+	cookieStore.set("chat-model", model);
 }
 
 export async function generateTitleFromUserMessage({
-  message,
+	message,
 }: {
-  message: UIMessage;
+	message: UIMessage;
 }) {
-  const { text: title } = await generateText({
-    model: myProvider.languageModel("title-model"),
-    system: titlePrompt,
-    prompt: getTextFromMessage(message),
-  });
+	const { text: title } = await generateText({
+		model: myProvider.languageModel("title-model"),
+		system: titlePrompt,
+		prompt: getTextFromMessage(message),
+	});
 
-  return title;
+	return title;
 }
 
 export async function deleteTrailingMessages({ id }: { id: string }) {
-  const [message] = await getMessageById({ id });
+	const [message] = await getMessageById({ id });
 
-  await deleteMessagesByChatIdAfterTimestamp({
-    chatId: message.chatId,
-    timestamp: message.createdAt,
-  });
+	await deleteMessagesByChatIdAfterTimestamp({
+		chatId: message.chatId,
+		timestamp: message.createdAt,
+	});
 }
