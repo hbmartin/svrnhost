@@ -27,7 +27,7 @@ export function SubmitButton({
 		>
 			{children}
 
-			{(pending || (disableOnSuccess && isSuccessful)) && (
+			{shouldDisable && (
 				<span className="absolute right-4 animate-spin">
 					<LoaderIcon />
 				</span>

@@ -14,6 +14,8 @@ function PureChatHeader({
 }) {
 	const [mounted, setMounted] = useState(false);
 	const { resolvedTheme, setTheme } = useTheme();
+	const isDarkMode = mounted ? resolvedTheme === "dark" : false;
+	const nextTheme = isDarkMode ? "light" : "dark";
 
 	useEffect(() => {
 		setMounted(true);
@@ -30,27 +32,21 @@ function PureChatHeader({
 				SVRN AI Studio
 			</span>
 			{mounted ? (
-				(() => {
-					const isDarkMode = resolvedTheme === "dark";
-					const nextTheme = isDarkMode ? "light" : "dark";
-					return (
-						<Button
-							aria-label={`Switch to ${nextTheme} theme`}
-							onClick={() => setTheme(nextTheme)}
-							size="icon"
-							title={`Switch to ${nextTheme} theme`}
-							type="button"
-							variant="ghost"
-						>
-							{isDarkMode ? (
-								<SunIcon aria-hidden="true" className="size-4" />
-							) : (
-								<MoonIcon aria-hidden="true" className="size-4" />
-							)}
-							<span className="sr-only">Toggle light or dark appearance</span>
-						</Button>
-					);
-				})()
+				<Button
+					aria-label={`Switch to ${nextTheme} theme`}
+					onClick={() => setTheme(nextTheme)}
+					size="icon"
+					title={`Switch to ${nextTheme} theme`}
+					type="button"
+					variant="ghost"
+				>
+					{isDarkMode ? (
+						<SunIcon aria-hidden="true" className="size-4" />
+					) : (
+						<MoonIcon aria-hidden="true" className="size-4" />
+					)}
+					<span className="sr-only">Toggle light or dark appearance</span>
+				</Button>
 			) : (
 				<div className="h-10 w-10" />
 			)}
