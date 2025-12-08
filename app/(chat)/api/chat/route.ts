@@ -130,9 +130,6 @@ export async function POST(request: Request) {
 
 		logChatEvent("request_parsed", {
 			messagePartCount: message.parts.length,
-			attachmentCount: Array.isArray(message.attachments)
-				? message.attachments.length
-				: 0,
 		});
 
 		const session = await auth();
@@ -376,7 +373,8 @@ export async function POST(request: Request) {
 
 		if (error instanceof ChatSDKError) {
 			logChatEvent("handled_chat_sdk_error", {
-				errorCode: error.code,
+				errorCode: error.statusCode,
+				vercelId,
 			});
 			return error.toResponse();
 		}
