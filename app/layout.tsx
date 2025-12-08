@@ -6,9 +6,35 @@ import { ThemeProvider } from "next-themes";
 import "./globals.css";
 import { SessionProvider } from "next-auth/react";
 
+const SITE_URL = "https://svrnhost.vercel.app";
+const SITE_TITLE = "SVRN AI Studio";
+const SITE_DESCRIPTION =
+  "Work with SVRN AI Studio to research, build, and ship artifacts faster.";
+
 export const metadata: Metadata = {
-  metadataBase: new URL("https://svrnhost.vercel.app/"),
-  title: "SVRN AI Studio",
+  metadataBase: new URL(SITE_URL),
+  title: SITE_TITLE,
+  description: SITE_DESCRIPTION,
+  openGraph: {
+    type: "website",
+    url: SITE_URL,
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+    images: [
+      {
+        url: "/opengraph-image.png",
+        width: 2400,
+        height: 1256,
+        alt: "Preview of SVRN AI Studio",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+    images: ["/twitter-image.png"],
+  },
 };
 
 export const viewport = {
