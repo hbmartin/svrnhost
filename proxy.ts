@@ -7,9 +7,11 @@ const PUBLIC_FILE_EXTENSION_REGEX = /\.(?:ico|jpe?g|png|svg)$/i;
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const isApiRoute = pathname.startsWith("/api");
 
-  // Allow common static assets to be served without authentication.
-  if (PUBLIC_FILE_EXTENSION_REGEX.test(pathname)) {
+  // Allow common static assets to be served without authentication unless the
+  // request targets the API surface.
+  if (PUBLIC_FILE_EXTENSION_REGEX.test(pathname) && !isApiRoute) {
     return NextResponse.next();
   }
 
