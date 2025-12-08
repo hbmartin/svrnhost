@@ -1,8 +1,9 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { Moon as MoonIcon, Sun as SunIcon } from "lucide-react";
 import { memo } from "react";
-import { useWindowSize } from "usehooks-ts";
+import { useTheme } from "next-themes";
+import { Button } from "@/components/ui/button";
 
 function PureChatHeader({
   chatId,
@@ -11,10 +12,38 @@ function PureChatHeader({
   chatId: string;
   isReadonly: boolean;
 }) {
+  const { resolvedTheme, setTheme } = useTheme();
+  const currentTheme = resolvedTheme ?? "light";
+  const isDarkMode = currentTheme === "dark";
+  const nextTheme = isDarkMode ? "light" : "dark";
 
   return (
-    <header className="sticky top-0 flex items-center gap-2 bg-background px-2 py-1.5 md:px-2 font-serif">
-      SVRN AI Studio
+    <header
+      aria-live={isReadonly ? "polite" : "off"}
+      className="sticky top-0 z-10 flex items-center justify-between gap-2 bg-background px-2 py-1.5 font-serif md:px-2"
+      data-chat-id={chatId}
+      id={`chat-${chatId}-header`}
+    >
+      <span className="text-base font-semibold tracking-tight">
+        SVRN AI Studio
+      </span>
+      <Button
+        aria-label={`Switch to ${nextTheme} theme`}
+        onClick={() => {
+          setTheme(nextTheme);
+        }}
+        size="icon"
+        title={`Switch to ${nextTheme} theme`}
+        type="button"
+        variant="ghost"
+      >
+        {isDarkMode ? (
+          <SunIcon aria-hidden="true" className="size-4" />
+        ) : (
+          <MoonIcon aria-hidden="true" className="size-4" />
+        )}
+        <span className="sr-only">Toggle light or dark appearance</span>
+      </Button>
     </header>
   );
 }

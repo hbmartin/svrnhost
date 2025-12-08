@@ -15,26 +15,6 @@ export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: SITE_TITLE,
   description: SITE_DESCRIPTION,
-  openGraph: {
-    type: "website",
-    url: SITE_URL,
-    title: SITE_TITLE,
-    description: SITE_DESCRIPTION,
-    images: [
-      {
-        url: "/opengraph-image.png",
-        width: 2400,
-        height: 1256,
-        alt: "Preview of SVRN AI Studio",
-      },
-    ],
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: SITE_TITLE,
-    description: SITE_DESCRIPTION,
-    images: ["/twitter-image.png"],
-  },
 };
 
 export const viewport = {
@@ -99,9 +79,9 @@ export default function RootLayout({
       <body className="antialiased">
         <ThemeProvider
           attribute="class"
-          defaultTheme="system"
+          defaultTheme="dark"
           disableTransitionOnChange
-          enableSystem
+          enableSystem={false}
         >
           <Toaster position="top-center" />
           <SessionProvider>{children}</SessionProvider>

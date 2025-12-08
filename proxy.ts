@@ -3,9 +3,15 @@ import { getToken } from "next-auth/jwt";
 import { isDevelopmentEnvironment } from "./lib/constants";
 
 const PUBLIC_ROUTES = new Set(["/login"]);
+const PUBLIC_FILE_EXTENSION_REGEX = /\.(?:ico|jpe?g|png|svg)$/i;
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // Allow common static assets to be served without authentication.
+  if (PUBLIC_FILE_EXTENSION_REGEX.test(pathname)) {
+    return NextResponse.next();
+  }
 
   /*
    * Playwright starts the dev server and requires a 200 status to
