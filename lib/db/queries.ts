@@ -14,10 +14,8 @@ import {
 } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import type { ArtifactKind } from "@/components/artifact";
 import { ChatSDKError } from "../errors";
 import type { AppUsage } from "../usage";
-import { generateUUID } from "../utils";
 import {
 	type Chat,
 	chat,
@@ -284,36 +282,6 @@ export async function getVotesByChatId({ id }: { id: string }) {
 			"bad_request:database",
 			"Failed to get votes by chat id",
 		);
-	}
-}
-
-export async function saveDocument({
-	id,
-	title,
-	kind,
-	content,
-	userId,
-}: {
-	id: string;
-	title: string;
-	kind: ArtifactKind;
-	content: string;
-	userId: string;
-}) {
-	try {
-		return await db
-			.insert(document)
-			.values({
-				id,
-				title,
-				kind,
-				content,
-				userId,
-				createdAt: new Date(),
-			})
-			.returning();
-	} catch (_error) {
-		throw new ChatSDKError("bad_request:database", "Failed to save document");
 	}
 }
 
