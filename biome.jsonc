@@ -7,7 +7,8 @@
 			"!components/ui",
 			"!lib/utils.ts",
 			"!hooks/use-mobile.ts"
-		]
+		],
+		"experimentalScannerIgnores": [".git", "node_modules", ".next"]
 	},
 	"linter": {
 		"rules": {
