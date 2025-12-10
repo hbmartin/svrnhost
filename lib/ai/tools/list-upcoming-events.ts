@@ -12,7 +12,7 @@ const eventSchema = z.object({
 	title: z.string(),
 	date: z.string(),
 	time: z.string(),
-	datetime: z.iso.datetime(),
+	datetime: z.iso.datetime({ local: true, offset: true }),
 	venue: venueSchema,
 	guests: z.number(),
 	status: z.string(),
