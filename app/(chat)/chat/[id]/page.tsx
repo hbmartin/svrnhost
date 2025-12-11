@@ -49,24 +49,11 @@ async function ChatPage({ params }: { params: Promise<{ id: string }> }) {
 	const cookieStore = await cookies();
 	const chatModelFromCookie = cookieStore.get("chat-model");
 
-	if (!chatModelFromCookie) {
-		return (
-			<Chat
-				autoResume={true}
-				id={chat.id}
-				initialChatModel={DEFAULT_CHAT_MODEL}
-				initialLastContext={chat.lastContext ?? undefined}
-				initialMessages={uiMessages}
-				isReadonly={session?.user?.id !== chat.userId}
-			/>
-		);
-	}
-
 	return (
 		<Chat
 			autoResume={true}
 			id={chat.id}
-			initialChatModel={chatModelFromCookie.value}
+			initialChatModel={chatModelFromCookie?.value ?? DEFAULT_CHAT_MODEL}
 			initialLastContext={chat.lastContext ?? undefined}
 			initialMessages={uiMessages}
 			isReadonly={session?.user?.id !== chat.userId}

@@ -161,7 +161,6 @@ export function Chat({
 
 				<Messages
 					chatId={id}
-					isArtifactVisible={false}
 					isReadonly={isReadonly}
 					messages={messages}
 					regenerate={regenerate}
