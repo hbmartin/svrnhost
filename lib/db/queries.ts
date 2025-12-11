@@ -28,6 +28,7 @@ import {
 	type User,
 	user,
 	vote,
+	webhookLog,
 } from "./schema";
 import { generateHashedPassword } from "./utils";
 
@@ -54,7 +55,10 @@ export async function createUser(email: string, password: string) {
 	const hashedPassword = generateHashedPassword(password);
 
 	try {
-		return await db.insert(user).values({ email, password: hashedPassword });
+		return await db
+			.insert(user)
+			.values({ email, password: hashedPassword })
+			.returning();
 	} catch (_error) {
 		throw new ChatSDKError("bad_request:database", "Failed to create user");
 	}
@@ -536,5 +540,59 @@ export async function getStreamIdsByChatId({ chatId }: { chatId: string }) {
 			"bad_request:database",
 			"Failed to get stream ids by chat id",
 		);
+	}
+}
+
+export async function getLatestChatForUser({
+	userId,
+}: {
+	userId: string;
+}) {
+	try {
+		const [recentChat] = await db
+			.select()
+			.from(chat)
+			.where(eq(chat.userId, userId))
+			.orderBy(desc(chat.createdAt))
+			.limit(1);
+
+		return recentChat ?? null;
+	} catch (_error) {
+		throw new ChatSDKError(
+			"bad_request:database",
+			"Failed to get latest chat for user",
+		);
+	}
+}
+
+export async function saveWebhookLog(entry: {
+	source: string;
+	direction?: string | null;
+	status?: string | null;
+	requestUrl?: string | null;
+	messageSid?: string | null;
+	fromNumber?: string | null;
+	toNumber?: string | null;
+	payload?: Record<string, unknown> | null;
+	error?: string | null;
+}) {
+	try {
+		await db.insert(webhookLog).values({
+			source: entry.source,
+			direction: entry.direction ?? null,
+			status: entry.status ?? null,
+			requestUrl: entry.requestUrl ?? null,
+			messageSid: entry.messageSid ?? null,
+			fromNumber: entry.fromNumber ?? null,
+			toNumber: entry.toNumber ?? null,
+			payload: entry.payload ?? null,
+			error: entry.error ?? null,
+			createdAt: new Date(),
+		});
+	} catch (logError) {
+		console.error("Failed to persist webhook log", {
+			entry,
+			error: logError,
+		});
 	}
 }
