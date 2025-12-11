@@ -1,10 +1,11 @@
-import { generateObject, convertToModelMessages } from "ai";
+import { trace } from "@opentelemetry/api";
+import { convertToModelMessages, generateObject } from "ai";
 import { after } from "next/server";
 import twilio from "twilio";
+import type { MessageListInstanceCreateOptions } from "twilio/lib/rest/api/v2010/account/message";
 import { z } from "zod";
-import { trace } from "@opentelemetry/api";
-import { myProvider } from "@/lib/ai/providers";
 import { svrnHostSystemPrompt } from "@/lib/ai/prompts";
+import { myProvider } from "@/lib/ai/providers";
 import {
 	createUser,
 	getLatestChatForUser,
@@ -16,7 +17,7 @@ import {
 } from "@/lib/db/queries";
 import type { DBMessage } from "@/lib/db/schema";
 import type { Attachment } from "@/lib/types";
-import { generateUUID } from "@/lib/utils";
+import { convertToUIMessages, generateUUID } from "@/lib/utils";
 
 const sourceLabel = "twilio:whatsapp";
 
@@ -251,15 +252,7 @@ async function handleWhatsAppMessage({
 
 	await sendTypingIndicator(client, payload);
 
-	const history = [
-		...existingMessages,
-		inboundMessage,
-	].map((message) => ({
-		id: message.id,
-		role: message.role,
-		parts: message.parts,
-		metadata: { createdAt: message.createdAt.toISOString() },
-	}));
+	const history = convertToUIMessages([...existingMessages, inboundMessage]);
 
 	const { object: aiResponse } = await generateObject({
 		model: myProvider.languageModel("chat-model"),
@@ -358,14 +351,12 @@ function extractAttachments(payload: IncomingMessage): Attachment[] {
 	const attachments: Attachment[] = [];
 
 	for (let index = 0; index < attachmentCount; index += 1) {
-		const mediaUrl =
-			payload[`MediaUrl${index}` as keyof typeof payload] as unknown as
-				| string
-				| undefined;
-		const contentType =
-			payload[`MediaContentType${index}` as keyof typeof payload] as unknown as
-				| string
-				| undefined;
+		const mediaUrl = payload[
+			`MediaUrl${index}` as keyof typeof payload
+		] as unknown as string | undefined;
+		const contentType = payload[
+			`MediaContentType${index}` as keyof typeof payload
+		] as unknown as string | undefined;
 
 		if (mediaUrl) {
 			attachments.push({
@@ -389,11 +380,13 @@ Caller:
 - Phone: ${payload.From}`;
 }
 
-async function sendTypingIndicator(client: twilio.Twilio, payload: IncomingMessage) {
-	const conversationSid =
-		payload["ConversationSid" as keyof IncomingMessage] as unknown as
-			| string
-			| undefined;
+async function sendTypingIndicator(
+	client: twilio.Twilio,
+	payload: IncomingMessage,
+) {
+	const conversationSid = payload[
+		"ConversationSid" as keyof IncomingMessage
+	] as unknown as string | undefined;
 	const agentIdentity = process.env.TWILIO_CONVERSATIONS_AGENT_IDENTITY;
 
 	if (!conversationSid || !agentIdentity) {
@@ -407,9 +400,13 @@ async function sendTypingIndicator(client: twilio.Twilio, payload: IncomingMessa
 	}
 
 	try {
-		const [agentParticipant] = await client.conversations.v1
+		const participants = await client.conversations.v1
 			.conversations(conversationSid)
-			.participants.list({ identity: agentIdentity, limit: 1 });
+			.participants.list();
+
+		const agentParticipant = participants.find(
+			(participant) => participant.identity === agentIdentity,
+		);
 
 		if (!agentParticipant) {
 			console.log("[whatsapp:typing] agent participant not found", {
@@ -419,10 +416,10 @@ async function sendTypingIndicator(client: twilio.Twilio, payload: IncomingMessa
 			return;
 		}
 
-		await client.conversations.v1
-			.conversations(conversationSid)
-			.participants(agentParticipant.sid)
-			.typing();
+		await client.request({
+			method: "post",
+			uri: `https://conversations.twilio.com/v1/Conversations/${conversationSid}/Participants/${agentParticipant.sid}/Typing`,
+		});
 
 		console.log("[whatsapp:typing] indicator sent", { conversationSid });
 	} catch (error) {
@@ -450,7 +447,7 @@ async function sendWhatsAppResponse({
 	const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID;
 	const buttonsContentSid = process.env.TWILIO_WHATSAPP_BUTTONS_CONTENT_SID;
 
-	const payload: Record<string, unknown> = {
+	const payload: MessageListInstanceCreateOptions = {
 		to,
 	};
 
