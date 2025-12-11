@@ -5,7 +5,7 @@ import {
 	incomingMessageSchema,
 } from "./types";
 import { processWhatsAppMessage } from "./service";
-import { saveWebhookLog } from "@/lib/db/queries";
+import { getWebhookLogByMessageSid, saveWebhookLog } from "@/lib/db/queries";
 
 export async function POST(request: Request) {
 	const rawBody = await request.text();
@@ -91,6 +91,21 @@ export async function POST(request: Request) {
 	console.log("[whatsapp:webhook] signature validated", {
 		messageSid: payload.MessageSid,
 	});
+
+	const existingLog = await getWebhookLogByMessageSid({
+		messageSid: payload.MessageSid,
+	});
+
+	if (existingLog) {
+		console.log("[whatsapp:webhook] duplicate detected, skipping", {
+			messageSid: payload.MessageSid,
+		});
+
+		return new Response("<Response></Response>", {
+			status: 200,
+			headers: { "Content-Type": "text/xml" },
+		});
+	}
 
 	after(() =>
 		processWhatsAppMessage({

@@ -543,6 +543,28 @@ export async function getStreamIdsByChatId({ chatId }: { chatId: string }) {
 	}
 }
 
+export async function getWebhookLogByMessageSid({
+	messageSid,
+}: {
+	messageSid: string;
+}) {
+	try {
+		const [existing] = await db
+			.select()
+			.from(webhookLog)
+			.where(eq(webhookLog.messageSid, messageSid))
+			.limit(1);
+
+		return existing ?? null;
+	} catch (error) {
+		console.error("Failed to read webhook log by messageSid", {
+			messageSid,
+			error,
+		});
+		return null;
+	}
+}
+
 export async function getLatestChatForUser({
 	userId,
 }: {

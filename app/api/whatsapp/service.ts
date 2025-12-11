@@ -12,11 +12,11 @@ import {
 	saveMessages,
 	saveWebhookLog,
 } from "@/lib/db/queries";
-import type { DBMessage } from "@/lib/db/schema";
+import type { DBMessage, User } from "@/lib/db/schema";
 import { convertToUIMessages, generateUUID } from "@/lib/utils";
 import {
-	sourceLabel,
 	type IncomingMessage,
+	sourceLabel,
 	type WhatsAppAIResponse,
 	whatsappResponseSchema,
 } from "./types";
@@ -80,7 +80,12 @@ async function handleWhatsAppMessage({
 	const normalizedFrom = normalizeWhatsAppNumber(payload.From);
 	const normalizedTo = normalizeWhatsAppNumber(payload.To);
 
-	const user = await resolveUser(normalizedFrom);
+	const [user] = await getUser(normalizedFrom);
+
+	if (!user) {
+		throw new Error("Failed to get user for WhatsApp contact");
+	}
+
 	const chatId = await resolveChatId({
 		userId: user.id,
 		payload,
@@ -183,22 +188,6 @@ function createTwilioClient() {
 	});
 }
 
-async function resolveUser(phoneAsEmail: string) {
-	const [existingUser] = await getUser(phoneAsEmail);
-
-	if (existingUser) {
-		return existingUser;
-	}
-
-	const [newUser] = await createUser(phoneAsEmail, generateUUID());
-
-	if (!newUser) {
-		throw new Error("Failed to create user for WhatsApp contact");
-	}
-
-	return newUser;
-}
-
 async function resolveChatId({
 	userId,
 	payload,
@@ -227,9 +216,7 @@ async function sendTypingIndicator(
 	client: twilio.Twilio,
 	payload: IncomingMessage,
 ) {
-	const conversationSid = payload[
-		"ConversationSid" as keyof IncomingMessage
-	] as unknown as string | undefined;
+	const conversationSid = payload.ConversationSid;
 	const agentIdentity = process.env.TWILIO_CONVERSATIONS_AGENT_IDENTITY;
 
 	if (!conversationSid || !agentIdentity) {
@@ -321,6 +308,9 @@ async function sendWhatsAppResponse({
 			})),
 		});
 	} else {
+		console.warn(
+			"[whatsapp:send] AI response included buttons, but TWILIO_WHATSAPP_BUTTONS_CONTENT_SID is not configured. Buttons will be ignored.",
+		);
 		payload.body = response.message;
 	}
 
