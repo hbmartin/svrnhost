@@ -2,7 +2,6 @@ import type { InferUITool, UIMessage } from "ai";
 import { z } from "zod";
 import type { getWeather } from "./ai/tools/get-weather";
 import type { listUpcomingEvents } from "./ai/tools/list-upcoming-events";
-import type { requestSuggestions } from "./ai/tools/request-suggestions";
 import type { Suggestion } from "./db/schema";
 import type { AppUsage } from "./usage";
 
@@ -16,14 +15,10 @@ export type MessageMetadata = z.infer<typeof messageMetadataSchema>;
 
 type weatherTool = InferUITool<typeof getWeather>;
 type listUpcomingEventsTool = InferUITool<typeof listUpcomingEvents>;
-type requestSuggestionsTool = InferUITool<
-	ReturnType<typeof requestSuggestions>
->;
 
 export type ChatTools = {
 	getWeather: weatherTool;
 	listUpcomingEvents: listUpcomingEventsTool;
-	requestSuggestions: requestSuggestionsTool;
 };
 
 export type CustomUIDataTypes = {

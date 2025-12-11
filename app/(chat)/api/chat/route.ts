@@ -23,7 +23,6 @@ import { type RequestHints, systemPrompt } from "@/lib/ai/prompts";
 import { myProvider } from "@/lib/ai/providers";
 import { getWeather } from "@/lib/ai/tools/get-weather";
 import { listUpcomingEvents } from "@/lib/ai/tools/list-upcoming-events";
-import { requestSuggestions } from "@/lib/ai/tools/request-suggestions";
 import { isProductionEnvironment } from "@/lib/constants";
 import {
 	createStreamId,
@@ -246,19 +245,11 @@ export async function POST(request: Request) {
 					system: systemPrompt({ selectedChatModel, requestHints }),
 					messages: convertToModelMessages(uiMessages),
 					stopWhen: stepCountIs(5),
-					experimental_activeTools: [
-						"getWeather",
-						"listUpcomingEvents",
-						"requestSuggestions",
-					],
+					experimental_activeTools: ["getWeather", "listUpcomingEvents"],
 					experimental_transform: smoothStream({ chunking: "word" }),
 					tools: {
 						getWeather,
 						listUpcomingEvents,
-						requestSuggestions: requestSuggestions({
-							session,
-							dataStream,
-						}),
 					},
 					experimental_telemetry: {
 						isEnabled: isProductionEnvironment,

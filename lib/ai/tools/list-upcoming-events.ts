@@ -208,5 +208,5 @@ export const listUpcomingEvents = tool({
 	description:
 		"List all upcoming SVRN events with schedule, venue, and RSVP status.",
 	inputSchema: z.object({}),
-	execute: async (input): Promise<EventsPayload> => events,
+	execute: async (_input): Promise<EventsPayload> => events,
 });
