@@ -41,8 +41,7 @@ export async function POST(request: Request) {
 	const payload = parsedPayload.data;
 	const signature = request.headers.get("x-twilio-signature");
 	const authToken = process.env.TWILIO_AUTH_TOKEN;
-	const webhookUrl =
-		process.env.TWILIO_WHATSAPP_WEBHOOK_URL?.trim() || request.url;
+	const webhookUrl = process.env.TWILIO_WHATSAPP_WEBHOOK_URL?.trim();
 
 	if (!signature) {
 		console.warn("[whatsapp:webhook] missing signature header");
@@ -59,6 +58,11 @@ export async function POST(request: Request) {
 
 	if (!authToken) {
 		console.error("[whatsapp:webhook] missing TWILIO_AUTH_TOKEN");
+		return new Response("Server misconfigured", { status: 500 });
+	}
+
+	if (!webhookUrl) {
+		console.error("[whatsapp:webhook] missing TWILIO_WHATSAPP_WEBHOOK_URL");
 		return new Response("Server misconfigured", { status: 500 });
 	}
 

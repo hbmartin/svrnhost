@@ -134,6 +134,12 @@ async function handleWhatsAppMessage({
 		system: buildSystemPrompt(payload),
 		messages: convertToModelMessages(history),
 		schema: whatsappResponseSchema,
+		maxRetries: 2,
+		abortSignal: AbortSignal.timeout(100_000), // 100 second timeout
+		experimental_telemetry: {
+			isEnabled: true,
+			functionId: "generate-whatsapp-response",
+		},
 	});
 
 	const sendResult = await sendWhatsAppResponse({
