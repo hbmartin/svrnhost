@@ -1,11 +1,8 @@
 import { after } from "next/server";
 import twilio from "twilio";
-import {
-	sourceLabel,
-	incomingMessageSchema,
-} from "./types";
+import { createPendingWebhookLog, saveWebhookLog } from "@/lib/db/queries";
 import { processWhatsAppMessage } from "./service";
-import { getWebhookLogByMessageSid, saveWebhookLog } from "@/lib/db/queries";
+import { incomingMessageSchema, sourceLabel } from "./types";
 
 export async function POST(request: Request) {
 	const rawBody = await request.text();
@@ -49,7 +46,6 @@ export async function POST(request: Request) {
 			saveWebhookLog({
 				source: sourceLabel,
 				status: "missing_signature",
-				requestUrl: webhookUrl,
 				payload,
 			}),
 		);
@@ -82,7 +78,6 @@ export async function POST(request: Request) {
 			saveWebhookLog({
 				source: sourceLabel,
 				status: "signature_failed",
-				requestUrl: webhookUrl,
 				messageSid: payload.MessageSid,
 				fromNumber: payload.From,
 				toNumber: payload.To,
@@ -96,11 +91,16 @@ export async function POST(request: Request) {
 		messageSid: payload.MessageSid,
 	});
 
-	const existingLog = await getWebhookLogByMessageSid({
+	const pendingLog = await createPendingWebhookLog({
+		source: sourceLabel,
+		requestUrl: webhookUrl,
 		messageSid: payload.MessageSid,
+		fromNumber: payload.From,
+		toNumber: payload.To,
+		payload,
 	});
 
-	if (existingLog) {
+	if (pendingLog.outcome === "duplicate") {
 		console.log("[whatsapp:webhook] duplicate detected, skipping", {
 			messageSid: payload.MessageSid,
 		});
@@ -109,6 +109,13 @@ export async function POST(request: Request) {
 			status: 200,
 			headers: { "Content-Type": "text/xml" },
 		});
+	}
+
+	if (pendingLog.outcome === "error") {
+		console.error("[whatsapp:webhook] failed to persist pending log", {
+			messageSid: payload.MessageSid,
+		});
+		return new Response("Server misconfigured", { status: 500 });
 	}
 
 	after(() =>

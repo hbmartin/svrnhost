@@ -6,10 +6,11 @@ import { myProvider } from "@/lib/ai/providers";
 import {
 	getLatestChatForUser,
 	getMessagesByChatId,
-	getUser,
+	getUserByPhone,
 	saveChat,
 	saveMessages,
 	saveWebhookLog,
+	upsertWebhookLogByMessageSid,
 	updateMessageMetadata,
 } from "@/lib/db/queries";
 import type { DBMessage } from "@/lib/db/schema";
@@ -37,18 +38,42 @@ export async function processWhatsAppMessage({
 }) {
 	return tracer.startActiveSpan("process-whatsapp", async (span) => {
 		try {
+			await upsertWebhookLogByMessageSid({
+				source: sourceLabel,
+				messageSid: payload.MessageSid,
+				status: "processing",
+				requestUrl,
+			});
 			await handleWhatsAppMessage({ payload, requestUrl });
+			await upsertWebhookLogByMessageSid({
+				source: sourceLabel,
+				messageSid: payload.MessageSid,
+				status: "processed",
+				error: null,
+			});
 		} catch (error) {
 			console.error("[whatsapp:webhook] processing failed", error);
-			await saveWebhookLog({
+			const errorMessage =
+				error instanceof Error ? error.message : String(error);
+
+			const updated = await upsertWebhookLogByMessageSid({
 				source: sourceLabel,
-				status: "processing_error",
-				requestUrl,
 				messageSid: payload.MessageSid,
-				fromNumber: payload.From,
-				toNumber: payload.To,
-				error: error instanceof Error ? error.message : String(error),
+				status: "processing_error",
+				error: errorMessage,
 			});
+
+			if (!updated) {
+				await saveWebhookLog({
+					source: sourceLabel,
+					status: "processing_error",
+					requestUrl,
+					messageSid: payload.MessageSid,
+					fromNumber: payload.From,
+					toNumber: payload.To,
+					error: errorMessage,
+				});
+			}
 		} finally {
 			span.end();
 		}
@@ -80,7 +105,7 @@ async function handleWhatsAppMessage({
 	const normalizedFrom = normalizeWhatsAppNumber(payload.From);
 	const normalizedTo = normalizeWhatsAppNumber(payload.To);
 
-	const [user] = await getUser(normalizedFrom);
+	const user = await getUserByPhone(normalizedFrom);
 
 	if (!user) {
 		throw new Error("Failed to get user for WhatsApp contact");
@@ -114,7 +139,7 @@ async function handleWhatsAppMessage({
 	};
 
 	await saveMessages({ messages: [inboundMessage] });
-	await saveWebhookLog({
+	await upsertWebhookLogByMessageSid({
 		source: sourceLabel,
 		direction: "inbound",
 		status: "received",
@@ -277,12 +302,26 @@ async function sendTypingIndicator(
 		console.log("[whatsapp:typing] indicator sent", { conversationSid });
 	} catch (error) {
 		console.error("[whatsapp:typing] failed to send indicator", error);
-		await saveWebhookLog({
+		const errorMessage =
+			error instanceof Error ? error.message : String(error);
+
+		const updated = await upsertWebhookLogByMessageSid({
 			source: sourceLabel,
-			status: "typing_failed",
 			messageSid: payload.MessageSid,
-			error: error instanceof Error ? error.message : String(error),
+			status: "typing_failed",
+			error: errorMessage,
 		});
+
+		if (!updated) {
+			await saveWebhookLog({
+				source: sourceLabel,
+				status: "typing_failed",
+				payload: {
+					messageSid: payload.MessageSid,
+					error: errorMessage,
+				},
+			});
+		}
 	}
 }
 
@@ -331,9 +370,11 @@ async function sendWhatsAppResponse({
 			})),
 		});
 	} else {
-		console.warn(
-			"[whatsapp:send] AI response included buttons, but TWILIO_WHATSAPP_BUTTONS_CONTENT_SID is not configured. Buttons will be ignored.",
-		);
+		if ((response.buttons?.length ?? 0) > 0) {
+			console.warn(
+				"[whatsapp:send] AI response included buttons, but TWILIO_WHATSAPP_BUTTONS_CONTENT_SID is not configured. Buttons will be ignored.",
+			);
+		}
 		payload.body = response.message;
 	}
 

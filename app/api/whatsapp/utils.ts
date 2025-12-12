@@ -38,7 +38,5 @@ export function buildSystemPrompt(payload: IncomingMessage) {
 
 You are chatting with a WhatsApp user. Keep replies concise, single-message friendly, and formatted for WhatsApp. Always return a JSON object that matches the provided schema with a "message" string and optional buttons (short quick replies), optional mediaUrl, and optional location data. Do not include Markdown fences or additional prose.
 
-Caller:
-- Profile: ${payload.ProfileName ?? "unknown"}
-- Phone: ${payload.From}`;
+Profile Name: ${payload.ProfileName ?? "unknown"}`;
 }
