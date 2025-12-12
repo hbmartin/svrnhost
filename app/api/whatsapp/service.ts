@@ -4,15 +4,15 @@ import twilio from "twilio";
 import type { MessageListInstanceCreateOptions } from "twilio/lib/rest/api/v2010/account/message";
 import { myProvider } from "@/lib/ai/providers";
 import {
-	createUser,
 	getLatestChatForUser,
 	getMessagesByChatId,
 	getUser,
 	saveChat,
 	saveMessages,
 	saveWebhookLog,
+	updateMessageMetadata,
 } from "@/lib/db/queries";
-import type { DBMessage, User } from "@/lib/db/schema";
+import type { DBMessage } from "@/lib/db/schema";
 import { convertToUIMessages, generateUUID } from "@/lib/utils";
 import {
 	type IncomingMessage,
@@ -142,15 +142,10 @@ async function handleWhatsAppMessage({
 		},
 	});
 
-	const sendResult = await sendWhatsAppResponse({
-		client,
-		to: normalizedFrom,
-		from: whatsappFrom ? normalizeWhatsAppNumber(whatsappFrom) : undefined,
-		response: aiResponse,
-	});
-
+	// Create assistant message with pending status before attempting to send
+	const assistantMessageId = generateUUID();
 	const assistantMessage: DBMessage = {
-		id: generateUUID(),
+		id: assistantMessageId,
 		chatId,
 		role: "assistant",
 		parts: [{ type: "text", text: aiResponse.message }],
@@ -158,7 +153,9 @@ async function handleWhatsAppMessage({
 		metadata: {
 			source: sourceLabel,
 			direction: "outbound",
-			messageSid: sendResult?.sid ?? null,
+			sendStatus: "pending" as const,
+			toNumber: normalizedFrom,
+			fromNumber: whatsappFrom ? normalizeWhatsAppNumber(whatsappFrom) : null,
 			buttons: aiResponse.buttons,
 			location: aiResponse.location,
 			mediaUrl: aiResponse.mediaUrl,
@@ -166,7 +163,27 @@ async function handleWhatsAppMessage({
 		createdAt: new Date(),
 	};
 
+	// Save message with pending status first so we can retry if send fails
 	await saveMessages({ messages: [assistantMessage] });
+
+	const sendResult = await sendWhatsAppResponse({
+		client,
+		to: normalizedFrom,
+		from: whatsappFrom ? normalizeWhatsAppNumber(whatsappFrom) : undefined,
+		response: aiResponse,
+	});
+
+	// Update message metadata with send result
+	await updateMessageMetadata({
+		id: assistantMessageId,
+		metadata: {
+			...assistantMessage.metadata,
+			sendStatus: sendResult ? ("sent" as const) : ("failed" as const),
+			messageSid: sendResult?.sid ?? null,
+			sendError: sendResult ? null : "Failed to send WhatsApp message",
+			sentAt: sendResult ? new Date().toISOString() : null,
+		},
+	});
 
 	await saveWebhookLog({
 		source: sourceLabel,

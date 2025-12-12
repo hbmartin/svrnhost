@@ -565,11 +565,7 @@ export async function getWebhookLogByMessageSid({
 	}
 }
 
-export async function getLatestChatForUser({
-	userId,
-}: {
-	userId: string;
-}) {
+export async function getLatestChatForUser({ userId }: { userId: string }) {
 	try {
 		const [recentChat] = await db
 			.select()
@@ -616,5 +612,56 @@ export async function saveWebhookLog(entry: {
 			entry,
 			error: logError,
 		});
+	}
+}
+
+export async function updateMessageMetadata({
+	id,
+	metadata,
+}: {
+	id: string;
+	metadata: Record<string, unknown>;
+}) {
+	try {
+		return await db.update(message).set({ metadata }).where(eq(message.id, id));
+	} catch (_error) {
+		throw new ChatSDKError(
+			"bad_request:database",
+			"Failed to update message metadata",
+		);
+	}
+}
+
+export async function getFailedOutboundMessages({
+	source,
+	limit = 100,
+}: {
+	source: string;
+	limit?: number;
+}) {
+	try {
+		const allMessages = await db
+			.select()
+			.from(message)
+			.where(eq(message.role, "assistant"))
+			.orderBy(desc(message.createdAt))
+			.limit(limit * 10); // Fetch more to filter in JS since JSONB filtering varies by DB
+
+		// Filter messages with failed sendStatus from the specified source
+		return allMessages
+			.filter((msg) => {
+				const meta = msg.metadata as Record<string, unknown> | null;
+				return (
+					meta?.source === source &&
+					meta?.direction === "outbound" &&
+					meta?.sendStatus === "failed"
+				);
+			})
+			.slice(0, limit);
+	} catch (_error) {
+		throw new ChatSDKError(
+			"bad_request:database",
+			"Failed to get failed outbound messages",
+		);
 	}
 }

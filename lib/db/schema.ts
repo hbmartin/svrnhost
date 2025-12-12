@@ -184,7 +184,7 @@ export const webhookLog = pgTable("WebhookLog", {
 	toNumber: varchar("toNumber", { length: 64 }),
 	payload: jsonb("payload"),
 	error: text("error"),
-	createdAt: timestamp("createdAt").notNull(),
+	createdAt: timestamp("createdAt").notNull().defaultNow(),
 });
 
 export type WebhookLog = InferSelectModel<typeof webhookLog>;
