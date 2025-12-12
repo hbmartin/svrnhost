@@ -58,6 +58,7 @@ export const message = pgTable("Message_v2", {
 	role: varchar("role").notNull(),
 	parts: json("parts").notNull(),
 	attachments: json("attachments").notNull(),
+	metadata: jsonb("metadata").$type<Record<string, unknown> | null>(),
 	createdAt: timestamp("createdAt").notNull(),
 });
 
@@ -171,3 +172,19 @@ export const stream = pgTable(
 );
 
 export type Stream = InferSelectModel<typeof stream>;
+
+export const webhookLog = pgTable("WebhookLog", {
+	id: uuid("id").notNull().defaultRandom().primaryKey(),
+	source: varchar("source", { length: 64 }).notNull(),
+	direction: varchar("direction", { length: 16 }),
+	status: varchar("status", { length: 64 }),
+	requestUrl: text("requestUrl"),
+	messageSid: varchar("messageSid", { length: 64 }),
+	fromNumber: varchar("fromNumber", { length: 64 }),
+	toNumber: varchar("toNumber", { length: 64 }),
+	payload: jsonb("payload"),
+	error: text("error"),
+	createdAt: timestamp("createdAt").notNull().defaultNow(),
+});
+
+export type WebhookLog = InferSelectModel<typeof webhookLog>;

@@ -28,6 +28,7 @@ import {
 	type User,
 	user,
 	vote,
+	webhookLog,
 } from "./schema";
 import { generateHashedPassword } from "./utils";
 
@@ -54,7 +55,10 @@ export async function createUser(email: string, password: string) {
 	const hashedPassword = generateHashedPassword(password);
 
 	try {
-		return await db.insert(user).values({ email, password: hashedPassword });
+		return await db
+			.insert(user)
+			.values({ email, password: hashedPassword })
+			.returning();
 	} catch (_error) {
 		throw new ChatSDKError("bad_request:database", "Failed to create user");
 	}
@@ -535,6 +539,129 @@ export async function getStreamIdsByChatId({ chatId }: { chatId: string }) {
 		throw new ChatSDKError(
 			"bad_request:database",
 			"Failed to get stream ids by chat id",
+		);
+	}
+}
+
+export async function getWebhookLogByMessageSid({
+	messageSid,
+}: {
+	messageSid: string;
+}) {
+	try {
+		const [existing] = await db
+			.select()
+			.from(webhookLog)
+			.where(eq(webhookLog.messageSid, messageSid))
+			.limit(1);
+
+		return existing ?? null;
+	} catch (error) {
+		console.error("Failed to read webhook log by messageSid", {
+			messageSid,
+			error,
+		});
+		return null;
+	}
+}
+
+export async function getLatestChatForUser({ userId }: { userId: string }) {
+	try {
+		const [recentChat] = await db
+			.select()
+			.from(chat)
+			.where(eq(chat.userId, userId))
+			.orderBy(desc(chat.createdAt))
+			.limit(1);
+
+		return recentChat ?? null;
+	} catch (_error) {
+		throw new ChatSDKError(
+			"bad_request:database",
+			"Failed to get latest chat for user",
+		);
+	}
+}
+
+export async function saveWebhookLog(entry: {
+	source: string;
+	direction?: string | null;
+	status?: string | null;
+	requestUrl?: string | null;
+	messageSid?: string | null;
+	fromNumber?: string | null;
+	toNumber?: string | null;
+	payload?: Record<string, unknown> | null;
+	error?: string | null;
+}) {
+	try {
+		await db.insert(webhookLog).values({
+			source: entry.source,
+			direction: entry.direction ?? null,
+			status: entry.status ?? null,
+			requestUrl: entry.requestUrl ?? null,
+			messageSid: entry.messageSid ?? null,
+			fromNumber: entry.fromNumber ?? null,
+			toNumber: entry.toNumber ?? null,
+			payload: entry.payload ?? null,
+			error: entry.error ?? null,
+			createdAt: new Date(),
+		});
+	} catch (logError) {
+		console.error("Failed to persist webhook log", {
+			entry,
+			error: logError,
+		});
+	}
+}
+
+export async function updateMessageMetadata({
+	id,
+	metadata,
+}: {
+	id: string;
+	metadata: Record<string, unknown>;
+}) {
+	try {
+		return await db.update(message).set({ metadata }).where(eq(message.id, id));
+	} catch (_error) {
+		throw new ChatSDKError(
+			"bad_request:database",
+			"Failed to update message metadata",
+		);
+	}
+}
+
+export async function getFailedOutboundMessages({
+	source,
+	limit = 100,
+}: {
+	source: string;
+	limit?: number;
+}) {
+	try {
+		const allMessages = await db
+			.select()
+			.from(message)
+			.where(eq(message.role, "assistant"))
+			.orderBy(desc(message.createdAt))
+			.limit(limit * 10); // Fetch more to filter in JS since JSONB filtering varies by DB
+
+		// Filter messages with failed sendStatus from the specified source
+		return allMessages
+			.filter((msg) => {
+				const meta = msg.metadata as Record<string, unknown> | null;
+				return (
+					meta?.source === source &&
+					meta?.direction === "outbound" &&
+					meta?.sendStatus === "failed"
+				);
+			})
+			.slice(0, limit);
+	} catch (_error) {
+		throw new ChatSDKError(
+			"bad_request:database",
+			"Failed to get failed outbound messages",
 		);
 	}
 }
