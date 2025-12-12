@@ -15,7 +15,7 @@
 		"db:pull": "drizzle-kit pull",
 		"db:check": "drizzle-kit check",
 		"db:up": "drizzle-kit up",
-		"test:unit": "pnpm exec tsx --test lib tests/unit",
+		"test:unit": "pnpm exec tsx --test \"tests/unit/**/*.test.ts\" \"**/*.unit.test.ts\"",
 		"test": "export PLAYWRIGHT=True && pnpm exec playwright test",
 		"nb": "next build"
 	},
