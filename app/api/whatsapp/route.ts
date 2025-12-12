@@ -1,11 +1,8 @@
 import { after } from "next/server";
-import twilio from "twilio";
-import {
-	sourceLabel,
-	incomingMessageSchema,
-} from "./types";
+import { createPendingLog, logWebhookError } from "./repository";
 import { processWhatsAppMessage } from "./service";
-import { getWebhookLogByMessageSid, saveWebhookLog } from "@/lib/db/queries";
+import { validateTwilioRequest } from "./twilio";
+import { incomingMessageSchema, sourceLabel } from "./types";
 
 export async function POST(request: Request) {
 	const rawBody = await request.text();
@@ -27,11 +24,9 @@ export async function POST(request: Request) {
 		});
 
 		after(() =>
-			saveWebhookLog({
-				source: sourceLabel,
-				status: "invalid_payload",
+			logWebhookError("invalid_payload", undefined, undefined, {
+				issues: parsedPayload.error.format(),
 				requestUrl: request.url,
-				payload: { issues: parsedPayload.error.format() },
 			}),
 		);
 
@@ -40,23 +35,15 @@ export async function POST(request: Request) {
 
 	const payload = parsedPayload.data;
 	const signature = request.headers.get("x-twilio-signature");
-	const authToken = process.env.TWILIO_AUTH_TOKEN;
 	const webhookUrl = process.env.TWILIO_WHATSAPP_WEBHOOK_URL?.trim();
 
 	if (!signature) {
 		console.warn("[whatsapp:webhook] missing signature header");
-		after(() =>
-			saveWebhookLog({
-				source: sourceLabel,
-				status: "missing_signature",
-				requestUrl: webhookUrl,
-				payload,
-			}),
-		);
+		after(() => logWebhookError("missing_signature", undefined, undefined, payload));
 		return new Response("Forbidden", { status: 403 });
 	}
 
-	if (!authToken) {
+	if (!process.env.TWILIO_AUTH_TOKEN) {
 		console.error("[whatsapp:webhook] missing TWILIO_AUTH_TOKEN");
 		return new Response("Server misconfigured", { status: 500 });
 	}
@@ -66,12 +53,7 @@ export async function POST(request: Request) {
 		return new Response("Server misconfigured", { status: 500 });
 	}
 
-	const isValidRequest = twilio.validateRequest(
-		authToken,
-		signature,
-		webhookUrl,
-		rawParams,
-	);
+	const isValidRequest = validateTwilioRequest(signature, webhookUrl, rawParams);
 
 	if (!isValidRequest) {
 		console.warn("[whatsapp:webhook] signature validation failed", {
@@ -79,14 +61,10 @@ export async function POST(request: Request) {
 			messageSid: payload.MessageSid,
 		});
 		after(() =>
-			saveWebhookLog({
-				source: sourceLabel,
-				status: "signature_failed",
-				requestUrl: webhookUrl,
-				messageSid: payload.MessageSid,
+			logWebhookError("signature_failed", payload.MessageSid, undefined, {
+				...payload,
 				fromNumber: payload.From,
 				toNumber: payload.To,
-				payload,
 			}),
 		);
 		return new Response("Forbidden", { status: 403 });
@@ -96,11 +74,9 @@ export async function POST(request: Request) {
 		messageSid: payload.MessageSid,
 	});
 
-	const existingLog = await getWebhookLogByMessageSid({
-		messageSid: payload.MessageSid,
-	});
+	const pendingLog = await createPendingLog(webhookUrl, payload);
 
-	if (existingLog) {
+	if (pendingLog.outcome === "duplicate") {
 		console.log("[whatsapp:webhook] duplicate detected, skipping", {
 			messageSid: payload.MessageSid,
 		});
@@ -109,6 +85,13 @@ export async function POST(request: Request) {
 			status: 200,
 			headers: { "Content-Type": "text/xml" },
 		});
+	}
+
+	if (pendingLog.outcome === "error") {
+		console.error("[whatsapp:webhook] failed to persist pending log", {
+			messageSid: payload.MessageSid,
+		});
+		return new Response("Server misconfigured", { status: 500 });
 	}
 
 	after(() =>

@@ -8,6 +8,7 @@ import {
 	primaryKey,
 	text,
 	timestamp,
+	uniqueIndex,
 	uuid,
 	varchar,
 } from "drizzle-orm/pg-core";
@@ -15,7 +16,9 @@ import type { AppUsage } from "../usage";
 
 export const user = pgTable("User", {
 	id: uuid("id").primaryKey().notNull().defaultRandom(),
+	// TODO: email should be optional?
 	email: varchar("email", { length: 64 }).notNull(),
+	phone: varchar("phone", { length: 32 }),
 	password: varchar("password", { length: 64 }),
 });
 
@@ -173,18 +176,26 @@ export const stream = pgTable(
 
 export type Stream = InferSelectModel<typeof stream>;
 
-export const webhookLog = pgTable("WebhookLog", {
-	id: uuid("id").notNull().defaultRandom().primaryKey(),
-	source: varchar("source", { length: 64 }).notNull(),
-	direction: varchar("direction", { length: 16 }),
-	status: varchar("status", { length: 64 }),
-	requestUrl: text("requestUrl"),
-	messageSid: varchar("messageSid", { length: 64 }),
-	fromNumber: varchar("fromNumber", { length: 64 }),
-	toNumber: varchar("toNumber", { length: 64 }),
-	payload: jsonb("payload"),
-	error: text("error"),
-	createdAt: timestamp("createdAt").notNull().defaultNow(),
-});
+export const webhookLog = pgTable(
+	"WebhookLog",
+	{
+		id: uuid("id").notNull().defaultRandom().primaryKey(),
+		source: varchar("source", { length: 64 }).notNull(),
+		direction: varchar("direction", { length: 16 }),
+		status: varchar("status", { length: 64 }),
+		requestUrl: text("requestUrl"),
+		messageSid: varchar("messageSid", { length: 64 }),
+		fromNumber: varchar("fromNumber", { length: 64 }),
+		toNumber: varchar("toNumber", { length: 64 }),
+		payload: jsonb("payload"),
+		error: text("error"),
+		createdAt: timestamp("createdAt").notNull().defaultNow(),
+	},
+	(table) => ({
+		messageSidUnique: uniqueIndex("WebhookLog_messageSid_unique").on(
+			table.messageSid,
+		),
+	}),
+);
 
 export type WebhookLog = InferSelectModel<typeof webhookLog>;

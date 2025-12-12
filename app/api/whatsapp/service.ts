@@ -1,25 +1,29 @@
 import { trace } from "@opentelemetry/api";
 import { convertToModelMessages, generateObject } from "ai";
-import twilio from "twilio";
-import type { MessageListInstanceCreateOptions } from "twilio/lib/rest/api/v2010/account/message";
 import { myProvider } from "@/lib/ai/providers";
+import { convertToUIMessages } from "@/lib/utils";
 import {
-	getLatestChatForUser,
-	getMessagesByChatId,
-	getUser,
-	saveChat,
-	saveMessages,
-	saveWebhookLog,
-	updateMessageMetadata,
-} from "@/lib/db/queries";
-import type { DBMessage } from "@/lib/db/schema";
-import { convertToUIMessages, generateUUID } from "@/lib/utils";
+	findUserByPhone,
+	getChatMessages,
+	logProcessingError,
+	logSendFailed,
+	logTypingFailed,
+	logWebhookOutbound,
+	logWebhookReceived,
+	markMessageFailed,
+	markMessageSent,
+	resolveOrCreateChat,
+	saveInboundMessage,
+	saveOutboundMessage,
+	updateProcessingStatus,
+} from "./repository";
 import {
-	type IncomingMessage,
-	sourceLabel,
-	type WhatsAppAIResponse,
-	whatsappResponseSchema,
-} from "./types";
+	createTwilioClient,
+	sendTypingIndicator,
+	sendWhatsAppMessage,
+	type TwilioClient,
+} from "./twilio";
+import { type IncomingMessage, whatsappResponseSchema } from "./types";
 import {
 	buildSystemPrompt,
 	extractAttachments,
@@ -37,18 +41,30 @@ export async function processWhatsAppMessage({
 }) {
 	return tracer.startActiveSpan("process-whatsapp", async (span) => {
 		try {
+			await updateProcessingStatus(payload.MessageSid, "processing", requestUrl);
 			await handleWhatsAppMessage({ payload, requestUrl });
+			await updateProcessingStatus(payload.MessageSid, "processed");
 		} catch (error) {
 			console.error("[whatsapp:webhook] processing failed", error);
-			await saveWebhookLog({
-				source: sourceLabel,
-				status: "processing_error",
-				requestUrl,
-				messageSid: payload.MessageSid,
-				fromNumber: payload.From,
-				toNumber: payload.To,
-				error: error instanceof Error ? error.message : String(error),
-			});
+			const errorMessage =
+				error instanceof Error ? error.message : String(error);
+
+			const updated = await updateProcessingStatus(
+				payload.MessageSid,
+				"processing_error",
+				undefined,
+				errorMessage,
+			);
+
+			if (!updated) {
+				await logProcessingError(
+					payload.MessageSid,
+					payload.From,
+					payload.To,
+					requestUrl,
+					errorMessage,
+				);
+			}
 		} finally {
 			span.end();
 		}
@@ -80,52 +96,29 @@ async function handleWhatsAppMessage({
 	const normalizedFrom = normalizeWhatsAppNumber(payload.From);
 	const normalizedTo = normalizeWhatsAppNumber(payload.To);
 
-	const [user] = await getUser(normalizedFrom);
+	const user = await findUserByPhone(normalizedFrom);
 
 	if (!user) {
 		throw new Error("Failed to get user for WhatsApp contact");
 	}
 
-	const chatId = await resolveChatId({
-		userId: user.id,
-		payload,
-	});
-
-	const existingMessages = await getMessagesByChatId({ id: chatId });
+	const chatId = await resolveOrCreateChat(user.id, payload);
+	const existingMessages = await getChatMessages(chatId);
 	const attachments = extractAttachments(payload);
 
-	const inboundMessageId = generateUUID();
-	const inboundMessage: DBMessage = {
-		id: inboundMessageId,
+	const inboundMessage = await saveInboundMessage({
 		chatId,
-		role: "user",
-		parts: [{ type: "text", text: payload.Body ?? "" }],
+		body: payload.Body ?? "",
 		attachments,
-		metadata: {
-			source: sourceLabel,
-			direction: "inbound",
-			messageSid: payload.MessageSid,
-			profileName: payload.ProfileName,
-			waId: payload.WaId,
-			numMedia: payload.NumMedia,
-			requestUrl,
-		},
-		createdAt: new Date(),
-	};
-
-	await saveMessages({ messages: [inboundMessage] });
-	await saveWebhookLog({
-		source: sourceLabel,
-		direction: "inbound",
-		status: "received",
-		requestUrl,
 		messageSid: payload.MessageSid,
-		fromNumber: payload.From,
-		toNumber: payload.To,
-		payload,
+		profileName: payload.ProfileName,
+		waId: payload.WaId,
+		numMedia: payload.NumMedia,
+		requestUrl,
 	});
 
-	await sendTypingIndicator(client, payload);
+	await logWebhookReceived(requestUrl, payload);
+	await trySendTypingIndicator(client, payload);
 
 	const history = convertToUIMessages([...existingMessages, inboundMessage]);
 
@@ -135,226 +128,86 @@ async function handleWhatsAppMessage({
 		messages: convertToModelMessages(history),
 		schema: whatsappResponseSchema,
 		maxRetries: 2,
-		abortSignal: AbortSignal.timeout(100_000), // 100 second timeout
+		abortSignal: AbortSignal.timeout(100_000),
 		experimental_telemetry: {
 			isEnabled: true,
 			functionId: "generate-whatsapp-response",
 		},
 	});
 
-	// Create assistant message with pending status before attempting to send
-	const assistantMessageId = generateUUID();
-	const assistantMessage: DBMessage = {
-		id: assistantMessageId,
+	const normalizedWhatsappFrom = whatsappFrom
+		? normalizeWhatsAppNumber(whatsappFrom)
+		: null;
+
+	const outboundRecord = await saveOutboundMessage({
 		chatId,
-		role: "assistant",
-		parts: [{ type: "text", text: aiResponse.message }],
-		attachments: [],
-		metadata: {
-			source: sourceLabel,
-			direction: "outbound",
-			sendStatus: "pending" as const,
-			toNumber: normalizedFrom,
-			fromNumber: whatsappFrom ? normalizeWhatsAppNumber(whatsappFrom) : null,
-			buttons: aiResponse.buttons,
-			location: aiResponse.location,
-			mediaUrl: aiResponse.mediaUrl,
-		},
-		createdAt: new Date(),
-	};
+		response: aiResponse,
+		toNumber: normalizedFrom,
+		fromNumber: normalizedWhatsappFrom,
+	});
 
-	// Save message with pending status first so we can retry if send fails
-	await saveMessages({ messages: [assistantMessage] });
-
-	const sendResult = await sendWhatsAppResponse({
+	const sendResult = await trySendWhatsAppMessage({
 		client,
 		to: normalizedFrom,
-		from: whatsappFrom ? normalizeWhatsAppNumber(whatsappFrom) : undefined,
+		from: normalizedWhatsappFrom ?? undefined,
 		response: aiResponse,
 	});
 
-	// Update message metadata with send result
-	await updateMessageMetadata({
-		id: assistantMessageId,
-		metadata: {
-			...assistantMessage.metadata,
-			sendStatus: sendResult ? ("sent" as const) : ("failed" as const),
-			messageSid: sendResult?.sid ?? null,
-			sendError: sendResult ? null : "Failed to send WhatsApp message",
-			sentAt: sendResult ? new Date().toISOString() : null,
-		},
-	});
+	if (sendResult) {
+		await markMessageSent(
+			outboundRecord.id,
+			outboundRecord.message.metadata as Record<string, unknown>,
+			sendResult.sid,
+		);
+	} else {
+		await markMessageFailed(
+			outboundRecord.id,
+			outboundRecord.message.metadata as Record<string, unknown>,
+			"Failed to send WhatsApp message",
+		);
+	}
 
-	await saveWebhookLog({
-		source: sourceLabel,
-		direction: "outbound",
-		status: sendResult ? sendResult.status : "not_sent",
+	await logWebhookOutbound(
 		requestUrl,
-		messageSid: sendResult?.sid,
-		fromNumber: normalizedTo,
-		toNumber: normalizedFrom,
-		payload: aiResponse,
-	});
+		normalizedTo,
+		normalizedFrom,
+		aiResponse,
+		sendResult?.sid,
+		sendResult ? sendResult.status : "not_sent",
+	);
 }
 
-function createTwilioClient() {
-	const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
-	const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
-
-	if (!twilioAccountSid || !twilioAuthToken) {
-		throw new Error("Twilio credentials are not configured");
-	}
-
-	return twilio(twilioAccountSid, twilioAuthToken, {
-		autoRetry: true,
-		maxRetries: 3,
-	});
-}
-
-async function resolveChatId({
-	userId,
-	payload,
-}: {
-	userId: string;
-	payload: IncomingMessage;
-}) {
-	const existingChat = await getLatestChatForUser({ userId });
-
-	if (existingChat) {
-		return existingChat.id;
-	}
-
-	const chatId = generateUUID();
-
-	await saveChat({
-		id: chatId,
-		userId,
-		title: `WhatsApp ${payload.ProfileName ?? payload.From}`,
-	});
-
-	return chatId;
-}
-
-async function sendTypingIndicator(
-	client: twilio.Twilio,
+async function trySendTypingIndicator(
+	client: TwilioClient,
 	payload: IncomingMessage,
-) {
-	const conversationSid = payload.ConversationSid;
-	const agentIdentity = process.env.TWILIO_CONVERSATIONS_AGENT_IDENTITY;
-
-	if (!conversationSid || !agentIdentity) {
-		console.log(
-			"[whatsapp:typing] skipping typing indicator",
-			!conversationSid
-				? "missing conversationSid"
-				: "missing agent identity env",
-		);
-		return;
-	}
-
+): Promise<void> {
 	try {
-		const participants = await client.conversations.v1
-			.conversations(conversationSid)
-			.participants.list();
-
-		const agentParticipant = participants.find(
-			(participant) => participant.identity === agentIdentity,
-		);
-
-		if (!agentParticipant) {
-			console.log("[whatsapp:typing] agent participant not found", {
-				conversationSid,
-				agentIdentity,
-			});
-			return;
-		}
-
-		await client.request({
-			method: "post",
-			uri: `https://conversations.twilio.com/v1/Conversations/${conversationSid}/Participants/${agentParticipant.sid}/Typing`,
-		});
-
-		console.log("[whatsapp:typing] indicator sent", { conversationSid });
+		await sendTypingIndicator(client, payload);
 	} catch (error) {
 		console.error("[whatsapp:typing] failed to send indicator", error);
-		await saveWebhookLog({
-			source: sourceLabel,
-			status: "typing_failed",
-			messageSid: payload.MessageSid,
-			error: error instanceof Error ? error.message : String(error),
-		});
+		await logTypingFailed(
+			payload.MessageSid,
+			error instanceof Error ? error.message : String(error),
+		);
 	}
 }
 
-async function sendWhatsAppResponse({
-	client,
-	to,
-	from,
-	response,
-}: {
-	client: twilio.Twilio;
+async function trySendWhatsAppMessage(params: {
+	client: TwilioClient;
 	to: string;
 	from?: string;
-	response: WhatsAppAIResponse;
-}) {
-	const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID;
-	const buttonsContentSid = process.env.TWILIO_WHATSAPP_BUTTONS_CONTENT_SID;
-
-	const payload: MessageListInstanceCreateOptions = {
-		to,
-	};
-
-	if (messagingServiceSid) {
-		payload.messagingServiceSid = messagingServiceSid;
-	} else if (from) {
-		payload.from = from;
-	}
-
-	if (response.mediaUrl) {
-		payload.mediaUrl = [response.mediaUrl];
-	}
-
-	if (response.location) {
-		payload.persistentAction = [
-			`geo:${response.location.latitude},${response.location.longitude}|${response.location.label ?? response.location.name}`,
-		];
-	}
-
-	if (response.buttons?.length && buttonsContentSid) {
-		payload.contentSid = buttonsContentSid;
-		payload.contentVariables = JSON.stringify({
-			message: response.message,
-			buttons: response.buttons.map((button, index) => ({
-				id: button.id ?? `option-${index + 1}`,
-				label: button.label,
-				url: button.url,
-			})),
-		});
-	} else {
-		console.warn(
-			"[whatsapp:send] AI response included buttons, but TWILIO_WHATSAPP_BUTTONS_CONTENT_SID is not configured. Buttons will be ignored.",
-		);
-		payload.body = response.message;
-	}
-
+	response: Parameters<typeof sendWhatsAppMessage>[0]["response"];
+}): Promise<{ sid: string; status: string } | null> {
 	try {
-		const result = await client.messages.create(payload);
-		console.log("[whatsapp:send] message dispatched", {
-			sid: result.sid,
-			status: result.status,
-		});
-		return result;
+		return await sendWhatsAppMessage(params);
 	} catch (error) {
-		console.error("[whatsapp:send] failed to dispatch message", error, payload);
-		await saveWebhookLog({
-			source: sourceLabel,
-			direction: "outbound",
-			status: "send_failed",
-			fromNumber: from,
-			toNumber: to,
-			error: error instanceof Error ? error.message : String(error),
-			payload: response,
-		});
+		console.error("[whatsapp:send] failed to dispatch message", error);
+		await logSendFailed(
+			params.from,
+			params.to,
+			params.response,
+			error instanceof Error ? error.message : String(error),
+		);
 		return null;
 	}
 }
