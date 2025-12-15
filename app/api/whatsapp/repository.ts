@@ -1,5 +1,3 @@
-import type { Attachment } from "@/lib/types";
-import { generateUUID } from "@/lib/utils";
 import {
 	createPendingWebhookLog,
 	getLatestChatForUser,
@@ -12,6 +10,8 @@ import {
 	upsertWebhookLogByMessageSid,
 } from "@/lib/db/queries";
 import type { DBMessage, User } from "@/lib/db/schema";
+import type { Attachment } from "@/lib/types";
+import { generateUUID } from "@/lib/utils";
 import type { IncomingMessage, WhatsAppAIResponse } from "./types";
 import { sourceLabel } from "./types";
 
@@ -150,22 +150,6 @@ export async function markMessageFailed(
 			sendError: error,
 			sentAt: null,
 		},
-	});
-}
-
-export async function logWebhookReceived(
-	requestUrl: string,
-	payload: IncomingMessage,
-): Promise<void> {
-	await saveWebhookLog({
-		source: sourceLabel,
-		direction: "inbound",
-		status: "received",
-		requestUrl,
-		messageSid: payload.MessageSid,
-		fromNumber: payload.From,
-		toNumber: payload.To,
-		payload,
 	});
 }
 

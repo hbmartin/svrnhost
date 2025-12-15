@@ -9,7 +9,6 @@ import {
 	logSendFailed,
 	logTypingFailed,
 	logWebhookOutbound,
-	logWebhookReceived,
 	markMessageFailed,
 	markMessageSent,
 	resolveOrCreateChat,
@@ -41,7 +40,11 @@ export async function processWhatsAppMessage({
 }) {
 	return tracer.startActiveSpan("process-whatsapp", async (span) => {
 		try {
-			await updateProcessingStatus(payload.MessageSid, "processing", requestUrl);
+			await updateProcessingStatus(
+				payload.MessageSid,
+				"processing",
+				requestUrl,
+			);
 			await handleWhatsAppMessage({ payload, requestUrl });
 			await updateProcessingStatus(payload.MessageSid, "processed");
 		} catch (error) {
@@ -52,7 +55,7 @@ export async function processWhatsAppMessage({
 			const updated = await updateProcessingStatus(
 				payload.MessageSid,
 				"processing_error",
-				undefined,
+				requestUrl,
 				errorMessage,
 			);
 
@@ -117,7 +120,7 @@ async function handleWhatsAppMessage({
 		requestUrl,
 	});
 
-	await logWebhookReceived(requestUrl, payload);
+	await updateProcessingStatus(payload.MessageSid, "processing", requestUrl);
 	await trySendTypingIndicator(client, payload);
 
 	const history = convertToUIMessages([...existingMessages, inboundMessage]);

@@ -31,11 +31,6 @@ const logProviderConfig = () => {
 			"[ai:providers] Missing API credentials",
 			providerConfigSnapshot,
 		);
-	} else {
-		console.log(
-			"[ai:providers] Provider credentials detected",
-			providerConfigSnapshot,
-		);
 	}
 
 	hasLoggedProviderConfig = true;
