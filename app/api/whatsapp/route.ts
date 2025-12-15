@@ -2,7 +2,7 @@ import { after } from "next/server";
 import { createPendingLog, logWebhookError } from "./repository";
 import { processWhatsAppMessage } from "./service";
 import { validateTwilioRequest } from "./twilio";
-import { incomingMessageSchema, sourceLabel } from "./types";
+import { incomingMessageSchema } from "./types";
 
 export async function POST(request: Request) {
 	const rawBody = await request.text();

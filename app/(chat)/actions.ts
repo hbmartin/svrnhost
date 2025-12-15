@@ -7,7 +7,6 @@ import { myProvider } from "@/lib/ai/providers";
 import {
 	deleteMessagesByChatIdAfterTimestamp,
 	getMessageById,
-	updateChatVisibilityById,
 } from "@/lib/db/queries";
 import { getTextFromMessage } from "@/lib/utils";
 
