@@ -1,3 +1,24 @@
+/**
+ * WhatsApp Webhook Handler - Twilio Integration
+ *
+ * Security Flow:
+ * 1. Validate payload schema (400 on failure)
+ * 2. Check X-Twilio-Signature header presence (403 if missing)
+ * 3. Validate signature using TWILIO_AUTH_TOKEN (403 if invalid)
+ * 4. Create pending log for idempotency (skip duplicates, 500 on DB error)
+ * 5. Queue async processing via next/server after()
+ *
+ * User Not Found Behavior:
+ * - Unknown phone numbers are REJECTED (not provisioned)
+ * - Logged as "processing_error" with "User not found" message
+ * - To enable a user, add their WhatsApp phone to the users table
+ *
+ * HTTP Status Codes:
+ * - 200: Success (with TwiML response)
+ * - 400: Invalid/missing payload
+ * - 403: Missing or invalid Twilio signature
+ * - 500: Server misconfiguration (missing env vars) or DB error
+ */
 import { after } from "next/server";
 import { createPendingLog, logWebhookError } from "./repository";
 import { processWhatsAppMessage } from "./service";
@@ -47,11 +68,23 @@ export async function POST(request: Request) {
 
 	if (!process.env.TWILIO_AUTH_TOKEN) {
 		console.error("[whatsapp:webhook] missing TWILIO_AUTH_TOKEN");
+		after(() =>
+			logWebhookError("server_misconfigured", payload.MessageSid, "TWILIO_AUTH_TOKEN not set", {
+				fromNumber: payload.From,
+				toNumber: payload.To,
+			}),
+		);
 		return new Response("Server misconfigured", { status: 500 });
 	}
 
 	if (!webhookUrl) {
 		console.error("[whatsapp:webhook] missing TWILIO_WHATSAPP_WEBHOOK_URL");
+		after(() =>
+			logWebhookError("server_misconfigured", payload.MessageSid, "TWILIO_WHATSAPP_WEBHOOK_URL not set", {
+				fromNumber: payload.From,
+				toNumber: payload.To,
+			}),
+		);
 		return new Response("Server misconfigured", { status: 500 });
 	}
 

@@ -45,8 +45,6 @@
 
 ## Next Steps for M1 Foundations
 
-- Env/Config Readiness: Inventory required Twilio pieces (Account SID/Auth Token, WhatsApp sender or Messaging Service SID, Conversations agent identity for typing, optional buttons Content SID). Ensure we can provision/verify sender, messaging service, and pre-approved templates.
-- Webhook Hardening: Enforce Twilio signature validation and reject early; add a clear 401/403 path and logging for failures. Confirm incoming schema validation covers media fields; capture a pending log before processing and idempotently update status. Decide behavior when user not found (reject vs create provisional user) and document.
 - Session/Template Guardrails: Add a gate that checks if the 24h session is open; if closed, require a template send path (or skip send with a clear log/status).
 - Outbound Sending Reliability: Define retry/backoff policy for Twilio send failures and when to give up; decide whether to queue outbound sends (job queue or in-process retry). Set per-number rate limits to respect Twilio MPS and avoid bursts.
 - LLM Call Safety: Set strict timeouts, max retries, and schema validation; add fallbacks for invalid/empty AI responses (e.g., canned apology + escalation log); ensure buttons are ignored gracefully when Content SID missing (already logged) and confirm desired behavior.
