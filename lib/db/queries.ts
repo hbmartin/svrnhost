@@ -51,6 +51,23 @@ export async function getUser(email: string): Promise<User[]> {
 	}
 }
 
+export async function getUserByPhone(phone: string): Promise<User | null> {
+	try {
+		const [matchedUser] = await db
+			.select()
+			.from(user)
+			.where(eq(user.phone, phone))
+			.limit(1);
+
+		return matchedUser ?? null;
+	} catch (_error) {
+		throw new ChatSDKError(
+			"bad_request:database",
+			"Failed to get user by phone",
+		);
+	}
+}
+
 export async function createUser(email: string, password: string) {
 	const hashedPassword = generateHashedPassword(password);
 
@@ -559,6 +576,119 @@ export async function getWebhookLogByMessageSid({
 	} catch (error) {
 		console.error("Failed to read webhook log by messageSid", {
 			messageSid,
+			error,
+		});
+		return null;
+	}
+}
+
+export async function createPendingWebhookLog(entry: {
+	source: string;
+	requestUrl: string;
+	messageSid: string;
+	fromNumber: string;
+	toNumber: string;
+	payload: Record<string, unknown>;
+}) {
+	try {
+		const [created] = await db
+			.insert(webhookLog)
+			.values({
+				source: entry.source,
+				direction: "inbound",
+				status: "pending",
+				requestUrl: entry.requestUrl,
+				messageSid: entry.messageSid,
+				fromNumber: entry.fromNumber,
+				toNumber: entry.toNumber,
+				payload: entry.payload,
+				createdAt: new Date(),
+			})
+			.onConflictDoNothing({
+				target: webhookLog.messageSid,
+			})
+			.returning({ id: webhookLog.id });
+
+		return created ? { outcome: "created" as const, id: created.id } : { outcome: "duplicate" as const };
+	} catch (error) {
+		console.error("Failed to create pending webhook log", {
+			messageSid: entry.messageSid,
+			error,
+		});
+		return { outcome: "error" as const };
+	}
+}
+
+export async function upsertWebhookLogByMessageSid(entry: {
+	source: string;
+	messageSid: string;
+	direction?: string | null;
+	status?: string | null;
+	requestUrl?: string | null;
+	fromNumber?: string | null;
+	toNumber?: string | null;
+	payload?: Record<string, unknown> | null;
+	error?: string | null;
+}) {
+	const updates: Partial<typeof webhookLog.$inferInsert> = {};
+
+	if (entry.direction !== undefined) {
+		updates.direction = entry.direction ?? null;
+	}
+
+	if (entry.status !== undefined) {
+		updates.status = entry.status ?? null;
+	}
+
+	if (entry.requestUrl !== undefined) {
+		updates.requestUrl = entry.requestUrl ?? null;
+	}
+
+	if (entry.fromNumber !== undefined) {
+		updates.fromNumber = entry.fromNumber ?? null;
+	}
+
+	if (entry.toNumber !== undefined) {
+		updates.toNumber = entry.toNumber ?? null;
+	}
+
+	if (entry.payload !== undefined) {
+		updates.payload = entry.payload ?? null;
+	}
+
+	if (entry.error !== undefined) {
+		updates.error = entry.error ?? null;
+	}
+
+	if (Object.keys(updates).length === 0) {
+		return null;
+	}
+
+	try {
+		const [log] = await db
+			.insert(webhookLog)
+			.values({
+				source: entry.source,
+				direction: entry.direction ?? null,
+				status: entry.status ?? null,
+				requestUrl: entry.requestUrl ?? null,
+				messageSid: entry.messageSid,
+				fromNumber: entry.fromNumber ?? null,
+				toNumber: entry.toNumber ?? null,
+				payload: entry.payload ?? null,
+				error: entry.error ?? null,
+				createdAt: new Date(),
+			})
+			.onConflictDoUpdate({
+				target: webhookLog.messageSid,
+				set: updates,
+			})
+			.returning();
+
+		return log ?? null;
+	} catch (error) {
+		console.error("Failed to upsert webhook log by messageSid", {
+			entry,
 			error,
 		});
 		return null;
