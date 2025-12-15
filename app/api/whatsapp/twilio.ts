@@ -1,4 +1,4 @@
-import twilio from "twilio";
+import twilio, { RestException } from "twilio";
 import type { MessageListInstanceCreateOptions } from "twilio/lib/rest/api/v2010/account/message";
 import type { IncomingMessage, WhatsAppAIResponse } from "./types";
 
@@ -131,14 +131,26 @@ export async function sendWhatsAppMessage({
 		payload.body = response.message;
 	}
 
-	const result = await client.messages.create(payload);
-	console.log("[whatsapp:send] message dispatched", {
-		sid: result.sid,
-		status: result.status,
-	});
+	try {
+		const result = await client.messages.create(payload);
+		console.log("[whatsapp:send] message dispatched", {
+			sid: result.sid,
+			status: result.status,
+		});
 
-	return {
-		sid: result.sid,
-		status: result.status,
-	};
+		return {
+			sid: result.sid,
+			status: result.status,
+		};
+	} catch (error) {
+		if (error instanceof RestException) {
+			console.error(`Twilio Error ${error.code}: ${error.message}`, {
+				status: error.status,
+				moreInfo: error.moreInfo,
+			});
+		} else {
+			console.error("Other error:", error);
+		}
+		return null;
+	}
 }

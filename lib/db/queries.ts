@@ -609,7 +609,9 @@ export async function createPendingWebhookLog(entry: {
 			})
 			.returning({ id: webhookLog.id });
 
-		return created ? { outcome: "created" as const, id: created.id } : { outcome: "duplicate" as const };
+		return created
+			? { outcome: "created" as const, id: created.id }
+			: { outcome: "duplicate" as const };
 	} catch (error) {
 		console.error("Failed to create pending webhook log", {
 			messageSid: entry.messageSid,

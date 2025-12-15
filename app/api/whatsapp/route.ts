@@ -39,7 +39,9 @@ export async function POST(request: Request) {
 
 	if (!signature) {
 		console.warn("[whatsapp:webhook] missing signature header");
-		after(() => logWebhookError("missing_signature", undefined, undefined, payload));
+		after(() =>
+			logWebhookError("missing_signature", undefined, undefined, payload),
+		);
 		return new Response("Forbidden", { status: 403 });
 	}
 
@@ -53,7 +55,11 @@ export async function POST(request: Request) {
 		return new Response("Server misconfigured", { status: 500 });
 	}
 
-	const isValidRequest = validateTwilioRequest(signature, webhookUrl, rawParams);
+	const isValidRequest = validateTwilioRequest(
+		signature,
+		webhookUrl,
+		rawParams,
+	);
 
 	if (!isValidRequest) {
 		console.warn("[whatsapp:webhook] signature validation failed", {
@@ -91,6 +97,14 @@ export async function POST(request: Request) {
 		console.error("[whatsapp:webhook] failed to persist pending log", {
 			messageSid: payload.MessageSid,
 		});
+		after(() =>
+			logWebhookError(
+				"pending_log_failed",
+				payload.MessageSid,
+				"createPendingLog returned outcome=error",
+				{ requestUrl: request.url, webhookUrl },
+			),
+		);
 		return new Response("Server misconfigured", { status: 500 });
 	}
 
