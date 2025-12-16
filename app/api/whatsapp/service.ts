@@ -101,8 +101,24 @@ async function handleWhatsAppMessage({
 
 	const user = await findUserByPhone(normalizedFrom);
 
+	/**
+	 * User Not Found Behavior Decision:
+	 * We REJECT messages from unregistered phone numbers rather than creating provisional users.
+	 *
+	 * Rationale:
+	 * - Security: Only pre-registered users can interact with the system
+	 * - Prevents abuse from unknown numbers spamming the webhook
+	 * - Business context: Users must be onboarded through proper channels first
+	 *
+	 * The message is logged with "user_not_found" status for audit purposes.
+	 * To enable a user, add their WhatsApp phone number to the users table.
+	 */
 	if (!user) {
-		throw new Error("Failed to get user for WhatsApp contact");
+		console.warn("[whatsapp:service] user not found for phone number", {
+			normalizedFrom,
+			messageSid: payload.MessageSid,
+		});
+		throw new Error(`User not found for phone: ${normalizedFrom}`);
 	}
 
 	const chatId = await resolveOrCreateChat(user.id, payload);

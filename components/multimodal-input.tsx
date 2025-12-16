@@ -12,7 +12,6 @@ import {
 	startTransition,
 	useCallback,
 	useEffect,
-	useMemo,
 	useRef,
 	useState,
 } from "react";
@@ -189,13 +188,6 @@ function PureMultimodalInput({
 			toast.error("Failed to upload file, please try again!");
 		}
 	}, []);
-
-	const contextProps = useMemo(
-		() => ({
-			usage,
-		}),
-		[usage],
-	);
 
 	const handleFileChange = useCallback(
 		async (event: ChangeEvent<HTMLInputElement>) => {

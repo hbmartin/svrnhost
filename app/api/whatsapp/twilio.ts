@@ -88,7 +88,7 @@ export async function sendWhatsAppMessage({
 	to,
 	from,
 	response,
-}: SendMessageParams): Promise<SendMessageResult | null> {
+}: SendMessageParams): Promise<SendMessageResult> {
 	const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID;
 	const buttonsContentSid = process.env.TWILIO_WHATSAPP_BUTTONS_CONTENT_SID;
 
@@ -131,26 +131,14 @@ export async function sendWhatsAppMessage({
 		payload.body = response.message;
 	}
 
-	try {
-		const result = await client.messages.create(payload);
-		console.log("[whatsapp:send] message dispatched", {
-			sid: result.sid,
-			status: result.status,
-		});
+	const result = await client.messages.create(payload);
+	console.log("[whatsapp:send] message dispatched", {
+		sid: result.sid,
+		status: result.status,
+	});
 
-		return {
-			sid: result.sid,
-			status: result.status,
-		};
-	} catch (error) {
-		if (error instanceof RestException) {
-			console.error(`Twilio Error ${error.code}: ${error.message}`, {
-				status: error.status,
-				moreInfo: error.moreInfo,
-			});
-		} else {
-			console.error("Other error:", error);
-		}
-		return null;
-	}
+	return {
+		sid: result.sid,
+		status: result.status,
+	};
 }
