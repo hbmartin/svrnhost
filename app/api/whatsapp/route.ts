@@ -68,23 +68,11 @@ export async function POST(request: Request) {
 
 	if (!process.env.TWILIO_AUTH_TOKEN) {
 		console.error("[whatsapp:webhook] missing TWILIO_AUTH_TOKEN");
-		after(() =>
-			logWebhookError("server_misconfigured", payload.MessageSid, "TWILIO_AUTH_TOKEN not set", {
-				fromNumber: payload.From,
-				toNumber: payload.To,
-			}),
-		);
 		return new Response("Server misconfigured", { status: 500 });
 	}
 
 	if (!webhookUrl) {
 		console.error("[whatsapp:webhook] missing TWILIO_WHATSAPP_WEBHOOK_URL");
-		after(() =>
-			logWebhookError("server_misconfigured", payload.MessageSid, "TWILIO_WHATSAPP_WEBHOOK_URL not set", {
-				fromNumber: payload.From,
-				toNumber: payload.To,
-			}),
-		);
 		return new Response("Server misconfigured", { status: 500 });
 	}
 

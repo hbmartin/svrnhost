@@ -6,8 +6,12 @@ export type ImageProps = Experimental_GeneratedImage & {
 	alt?: string;
 };
 
-export const Image = ({ base64, mediaType, ...props }: ImageProps) => (
-	// biome-ignore lint/nursery/useImageSize: "Generated image without explicit size"
+export const Image = ({
+	base64,
+	uint8Array,
+	mediaType,
+	...props
+}: ImageProps) => (
 	// biome-ignore lint/performance/noImgElement: "Generated image without explicit size"
 	<img
 		{...props}
