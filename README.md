@@ -16,18 +16,12 @@
 
 ## Milestones
 
-- M1 Foundations: tighten WhatsApp webhook (validation, rate limits, retries), configure env for Twilio senders/templates, clarify message-type contract
-  to the LLM, add basic health/observability.
-- M2 Profiles & Preferences: expand User to store name/email/location/lifestyle/investment/privacy prefs; build capture flows (WhatsApp onboarding + web
-  form), consent logging, and identity linking.
-- M3 Messaging Templates & Email: set up template store + approval status; add email provider + worker for weekly digests; build content generation
-  pipeline (LLM) and scheduling.
-- M4 Events/RSVP/Payments: model events/dinners, invitations, RSVPs; generate one-click RSVP links/tokens; integrate Stripe Checkout/Payment Links and
-  surface in WhatsApp/email; store payment status.
-- M5 Social Graph & Intros: model connections, similarity signals, and attendance history; surface “friends attending” in event flows; design intro flow
-  (email guaranteed, explore WhatsApp handoff with compliance) with admin approval queue.
-- M6 Admin Dashboard: CRUD/search for users/events, pending intro approvals, comms blast launcher (templates + targeting + dry-run), engagement stats,
-  social graph views, and manual WhatsApp override/sent-log viewer.
+- M1 Foundations: Implement WhatsApp webhook (validation, rate limits, retries), configure env for Twilio senders/templates, clarify message-type contract to the LLM, add basic health/observability.
+- M2 Profiles & Preferences: expand User to store name/email/location/lifestyle/investment/privacy prefs; build capture flows (WhatsApp onboarding), consent logging, and identity linking.
+- M3 Messaging Templates & Email: set up template store + approval status; add email provider + worker for weekly digests; build content generation pipeline (LLM) and scheduling.
+- M4 Events/RSVP/Payments: model events/dinners, invitations, RSVPs; generate one-click RSVP links/tokens; integrate Stripe Checkout/Payment Links and surface in WhatsApp/email; store payment status.
+- M5 Social Graph & Intros: model connections, similarity signals, and attendance history; surface “friends attending” in event flows; design intro flow (email guaranteed, explore WhatsApp handoff with compliance) with admin approval queue.
+- M6 Admin Dashboard: CRUD/search for users/events, pending intro approvals, comms blast launcher (templates + targeting + dry-run), engagement stats, social graph views, and manual WhatsApp override/sent-log viewer.
 
 ## Dependencies
 

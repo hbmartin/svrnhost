@@ -12,6 +12,7 @@ import {
 import type { DBMessage, User } from "@/lib/db/schema";
 import type { Attachment } from "@/lib/types";
 import { generateUUID } from "@/lib/utils";
+import type { AIFailureType } from "@/lib/ai/safety";
 import type { IncomingMessage, WhatsAppAIResponse } from "./types";
 import { sourceLabel } from "./types";
 
@@ -262,5 +263,38 @@ export async function logProcessingError(
 		fromNumber,
 		toNumber,
 		error,
+	});
+}
+
+/**
+ * Log an AI failure escalation for monitoring and alerting.
+ *
+ * This creates a webhook log entry with status "escalation_ai_failure"
+ * which can be monitored/alerted on to track AI reliability issues.
+ */
+export async function logAIEscalation(params: {
+	chatId: string;
+	messageId?: string;
+	failureType: AIFailureType;
+	error: string;
+	requestUrl?: string;
+}): Promise<void> {
+	await saveWebhookLog({
+		source: sourceLabel,
+		status: "escalation_ai_failure",
+		requestUrl: params.requestUrl,
+		error: params.error,
+		payload: {
+			chatId: params.chatId,
+			messageId: params.messageId,
+			failureType: params.failureType,
+			timestamp: new Date().toISOString(),
+		},
+	});
+
+	console.error("[whatsapp:ai] escalation logged", {
+		chatId: params.chatId,
+		failureType: params.failureType,
+		error: params.error,
 	});
 }

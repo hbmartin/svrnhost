@@ -1,5 +1,11 @@
 import twilio, { RestException } from "twilio";
 import type { MessageListInstanceCreateOptions } from "twilio/lib/rest/api/v2010/account/message";
+import { whatsappRateLimiter } from "@/lib/rate-limiter";
+import {
+	isNetworkError,
+	isRetryableHttpStatus,
+	withRetry,
+} from "@/lib/retry";
 import type { IncomingMessage, WhatsAppAIResponse } from "./types";
 
 export type TwilioClient = twilio.Twilio;
@@ -141,4 +147,79 @@ export async function sendWhatsAppMessage({
 		sid: result.sid,
 		status: result.status,
 	};
+}
+
+/**
+ * Check if a Twilio error is retryable.
+ *
+ * Retryable errors:
+ * - 429 (rate limit)
+ * - 500-599 (server errors)
+ * - Network errors (connection reset, timeout, etc.)
+ *
+ * Non-retryable errors:
+ * - 400 (bad request - malformed payload)
+ * - 401/403 (authentication/authorization)
+ * - 404 (invalid phone number or resource)
+ * - Other 4xx client errors
+ */
+function isTwilioErrorRetryable(error: unknown): boolean {
+	if (isNetworkError(error)) {
+		return true;
+	}
+
+	if (error instanceof RestException) {
+		return isRetryableHttpStatus(error.status);
+	}
+
+	// For unknown error types, don't retry
+	return false;
+}
+
+/**
+ * Send a WhatsApp message with rate limiting and retry logic.
+ *
+ * - Rate limiting: Uses token bucket to respect 80 MPS Twilio limit
+ * - Retry: Exponential backoff for transient failures
+ * - Error classification: Distinguishes retryable vs permanent failures
+ *
+ * @throws Error if all retries exhausted or permanent failure encountered
+ */
+export async function sendWhatsAppMessageWithRetry(
+	params: SendMessageParams,
+): Promise<SendMessageResult> {
+	const { to } = params;
+
+	// Acquire rate limit token (waits up to 5 seconds)
+	try {
+		await whatsappRateLimiter.acquire(to);
+	} catch (rateLimitError) {
+		console.error("[whatsapp:send] rate limit acquisition failed", {
+			to,
+			error: rateLimitError instanceof Error ? rateLimitError.message : String(rateLimitError),
+		});
+		throw rateLimitError;
+	}
+
+	// Send with retry
+	const { result, attempts } = await withRetry(
+		() => sendWhatsAppMessage(params),
+		{
+			maxAttempts: 3,
+			baseDelayMs: 1000,
+			maxDelayMs: 30000,
+			context: "twilio-send",
+			shouldRetry: (error) => isTwilioErrorRetryable(error),
+		},
+	);
+
+	if (attempts > 1) {
+		console.log("[whatsapp:send] succeeded after retries", {
+			to,
+			attempts,
+			sid: result.sid,
+		});
+	}
+
+	return result;
 }
