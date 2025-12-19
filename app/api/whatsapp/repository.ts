@@ -15,6 +15,7 @@ import { generateUUID } from "@/lib/utils";
 import type { AIFailureType } from "@/lib/ai/safety";
 import type { IncomingMessage, WhatsAppAIResponse } from "./types";
 import { sourceLabel } from "./types";
+import { logWhatsAppEvent } from "./observability";
 
 export interface CreateInboundMessageParams {
 	chatId: string;
@@ -292,9 +293,14 @@ export async function logAIEscalation(params: {
 		},
 	});
 
-	console.error("[whatsapp:ai] escalation logged", {
+	logWhatsAppEvent("error", {
+		event: "whatsapp.ai.escalation",
+		direction: "internal",
 		chatId: params.chatId,
-		failureType: params.failureType,
 		error: params.error,
+		details: {
+			failureType: params.failureType,
+			messageId: params.messageId,
+		},
 	});
 }

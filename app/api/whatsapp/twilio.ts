@@ -1,3 +1,4 @@
+import { SpanStatusCode, trace } from "@opentelemetry/api";
 import twilio, { RestException } from "twilio";
 import type { MessageListInstanceCreateOptions } from "twilio/lib/rest/api/v2010/account/message";
 import { whatsappRateLimiter } from "@/lib/rate-limiter";
@@ -7,8 +8,15 @@ import {
 	withRetry,
 } from "@/lib/retry";
 import type { IncomingMessage, WhatsAppAIResponse } from "./types";
+import {
+	logWhatsAppEvent,
+	setWhatsAppSpanAttributes,
+	type WhatsAppCorrelationIds,
+} from "./observability";
 
 export type TwilioClient = twilio.Twilio;
+
+const tracer = trace.getTracer("whatsapp-twilio");
 
 export function createTwilioClient(): TwilioClient {
 	const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
@@ -39,42 +47,85 @@ export function validateTwilioRequest(
 export async function sendTypingIndicator(
 	client: TwilioClient,
 	payload: IncomingMessage,
+	correlation?: WhatsAppCorrelationIds,
 ): Promise<void> {
 	const conversationSid = payload.ConversationSid;
 	const agentIdentity = process.env.TWILIO_CONVERSATIONS_AGENT_IDENTITY;
+	const resolvedCorrelation: WhatsAppCorrelationIds = {
+		messageSid: correlation?.messageSid ?? payload.MessageSid,
+		waId: correlation?.waId ?? payload.WaId,
+		chatId: correlation?.chatId,
+	};
 
 	if (!conversationSid || !agentIdentity) {
-		console.log(
-			"[whatsapp:typing] skipping typing indicator",
-			!conversationSid
-				? "missing conversationSid"
-				: "missing agent identity env",
-		);
-		return;
-	}
-
-	const participants = await client.conversations.v1
-		.conversations(conversationSid)
-		.participants.list();
-
-	const agentParticipant = participants.find(
-		(participant) => participant.identity === agentIdentity,
-	);
-
-	if (!agentParticipant) {
-		console.log("[whatsapp:typing] agent participant not found", {
-			conversationSid,
-			agentIdentity,
+		logWhatsAppEvent("info", {
+			event: "whatsapp.typing.skipped",
+			direction: "outbound",
+			...resolvedCorrelation,
+			details: {
+				reason: !conversationSid
+					? "missing_conversation_sid"
+					: "missing_agent_identity",
+			},
 		});
 		return;
 	}
 
-	await client.request({
-		method: "post",
-		uri: `https://conversations.twilio.com/v1/Conversations/${conversationSid}/Participants/${agentParticipant.sid}/Typing`,
-	});
+	return tracer.startActiveSpan("twilio.typing_indicator", async (span) => {
+		setWhatsAppSpanAttributes(span, {
+			event: "whatsapp.typing",
+			direction: "outbound",
+			...resolvedCorrelation,
+		});
+		span.setAttribute("twilio.operation", "typing_indicator");
+		span.setAttribute("twilio.conversation_sid", conversationSid);
 
-	console.log("[whatsapp:typing] indicator sent", { conversationSid });
+		try {
+			const participants = await client.conversations.v1
+				.conversations(conversationSid)
+				.participants.list();
+
+			const agentParticipant = participants.find(
+				(participant) => participant.identity === agentIdentity,
+			);
+
+			if (!agentParticipant) {
+				logWhatsAppEvent("warn", {
+					event: "whatsapp.typing.agent_not_found",
+					direction: "outbound",
+					...resolvedCorrelation,
+					details: { conversationSid, agentIdentity },
+				});
+				span.setStatus({
+					code: SpanStatusCode.ERROR,
+					message: "agent_participant_not_found",
+				});
+				return;
+			}
+
+			await client.request({
+				method: "post",
+				uri: `https://conversations.twilio.com/v1/Conversations/${conversationSid}/Participants/${agentParticipant.sid}/Typing`,
+			});
+
+			logWhatsAppEvent("info", {
+				event: "whatsapp.typing.sent",
+				direction: "outbound",
+				...resolvedCorrelation,
+				details: { conversationSid },
+			});
+
+			span.setStatus({ code: SpanStatusCode.OK });
+		} catch (error) {
+			const errorMessage =
+				error instanceof Error ? error.message : String(error);
+			span.recordException(error as Error);
+			span.setStatus({ code: SpanStatusCode.ERROR, message: errorMessage });
+			throw error;
+		} finally {
+			span.end();
+		}
+	});
 }
 
 export interface SendMessageParams {
@@ -82,6 +133,7 @@ export interface SendMessageParams {
 	to: string;
 	from?: string;
 	response: WhatsAppAIResponse;
+	correlation?: WhatsAppCorrelationIds;
 }
 
 export interface SendMessageResult {
@@ -94,6 +146,7 @@ export async function sendWhatsAppMessage({
 	to,
 	from,
 	response,
+	correlation,
 }: SendMessageParams): Promise<SendMessageResult> {
 	const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID;
 	const buttonsContentSid = process.env.TWILIO_WHATSAPP_BUTTONS_CONTENT_SID;
@@ -130,23 +183,68 @@ export async function sendWhatsAppMessage({
 		});
 	} else {
 		if ((response.buttons?.length ?? 0) > 0) {
-			console.warn(
-				"[whatsapp:send] AI response included buttons, but TWILIO_WHATSAPP_BUTTONS_CONTENT_SID is not configured. Buttons will be ignored.",
-			);
+			logWhatsAppEvent("warn", {
+				event: "whatsapp.outbound.buttons_ignored",
+				direction: "outbound",
+				...correlation,
+				toNumber: to,
+				fromNumber: from,
+				error: "TWILIO_WHATSAPP_BUTTONS_CONTENT_SID missing",
+			});
 		}
 		payload.body = response.message;
 	}
 
-	const result = await client.messages.create(payload);
-	console.log("[whatsapp:send] message dispatched", {
-		sid: result.sid,
-		status: result.status,
-	});
+	return tracer.startActiveSpan("twilio.messages.create", async (span) => {
+		setWhatsAppSpanAttributes(span, {
+			event: "whatsapp.outbound.send",
+			direction: "outbound",
+			...correlation,
+			toNumber: to,
+			fromNumber: from,
+		});
+		span.setAttribute("twilio.operation", "messages.create");
+		span.setAttribute("twilio.to", to);
+		if (from) {
+			span.setAttribute("twilio.from", from);
+		}
+		if (messagingServiceSid) {
+			span.setAttribute("twilio.messaging_service_sid", messagingServiceSid);
+		}
 
-	return {
-		sid: result.sid,
-		status: result.status,
-	};
+		try {
+			const result = await client.messages.create(payload);
+			span.setAttribute("twilio.message_sid", result.sid);
+			if (result.status) {
+				span.setAttribute("twilio.status", result.status);
+			}
+
+			logWhatsAppEvent("info", {
+				event: "whatsapp.outbound.sent",
+				direction: "outbound",
+				...correlation,
+				toNumber: to,
+				fromNumber: from,
+				status: result.status ?? "unknown",
+				details: { outboundMessageSid: result.sid },
+			});
+
+			span.setStatus({ code: SpanStatusCode.OK });
+
+			return {
+				sid: result.sid,
+				status: result.status,
+			};
+		} catch (error) {
+			const errorMessage =
+				error instanceof Error ? error.message : String(error);
+			span.recordException(error as Error);
+			span.setStatus({ code: SpanStatusCode.ERROR, message: errorMessage });
+			throw error;
+		} finally {
+			span.end();
+		}
+	});
 }
 
 /**
@@ -188,15 +286,21 @@ function isTwilioErrorRetryable(error: unknown): boolean {
 export async function sendWhatsAppMessageWithRetry(
 	params: SendMessageParams,
 ): Promise<SendMessageResult> {
-	const { to } = params;
+	const { to, correlation } = params;
 
 	// Acquire rate limit token (waits up to 5 seconds)
 	try {
 		await whatsappRateLimiter.acquire(to);
 	} catch (rateLimitError) {
-		console.error("[whatsapp:send] rate limit acquisition failed", {
-			to,
-			error: rateLimitError instanceof Error ? rateLimitError.message : String(rateLimitError),
+		logWhatsAppEvent("error", {
+			event: "whatsapp.outbound.rate_limit_failed",
+			direction: "outbound",
+			...correlation,
+			toNumber: to,
+			error:
+				rateLimitError instanceof Error
+					? rateLimitError.message
+					: String(rateLimitError),
 		});
 		throw rateLimitError;
 	}
@@ -214,10 +318,12 @@ export async function sendWhatsAppMessageWithRetry(
 	);
 
 	if (attempts > 1) {
-		console.log("[whatsapp:send] succeeded after retries", {
-			to,
-			attempts,
-			sid: result.sid,
+		logWhatsAppEvent("warn", {
+			event: "whatsapp.outbound.send_retried",
+			direction: "outbound",
+			...correlation,
+			toNumber: to,
+			details: { attempts, outboundMessageSid: result.sid },
 		});
 	}
 

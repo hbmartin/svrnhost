@@ -1,4 +1,4 @@
-import { trace } from "@opentelemetry/api";
+import { SpanStatusCode, trace } from "@opentelemetry/api";
 import { convertToModelMessages, generateObject } from "ai";
 import { myProvider } from "@/lib/ai/providers";
 import {
@@ -40,6 +40,11 @@ import {
 	extractAttachments,
 	normalizeWhatsAppNumber,
 } from "./utils";
+import {
+	logWhatsAppEvent,
+	setWhatsAppSpanAttributes,
+	type WhatsAppCorrelationIds,
+} from "./observability";
 
 const tracer = trace.getTracer("whatsapp-webhook");
 
@@ -51,18 +56,44 @@ export async function processWhatsAppMessage({
 	requestUrl: string;
 }) {
 	return tracer.startActiveSpan("process-whatsapp", async (span) => {
+		setWhatsAppSpanAttributes(span, {
+			event: "whatsapp.processing",
+			direction: "inbound",
+			messageSid: payload.MessageSid,
+			waId: payload.WaId,
+			requestUrl,
+		});
+
+		let chatId: string | undefined;
+
 		try {
 			await updateProcessingStatus(
 				payload.MessageSid,
 				"processing",
 				requestUrl,
 			);
-			await handleWhatsAppMessage({ payload, requestUrl });
+			chatId = await handleWhatsAppMessage({ payload, requestUrl });
+			if (chatId) {
+				span.setAttribute("whatsapp.chat_id", chatId);
+			}
 			await updateProcessingStatus(payload.MessageSid, "processed");
+			span.setStatus({ code: SpanStatusCode.OK });
 		} catch (error) {
-			console.error("[whatsapp:webhook] processing failed", error);
 			const errorMessage =
 				error instanceof Error ? error.message : String(error);
+
+			span.recordException(error as Error);
+			span.setStatus({ code: SpanStatusCode.ERROR, message: errorMessage });
+
+			logWhatsAppEvent("error", {
+				event: "whatsapp.processing.error",
+				direction: "internal",
+				messageSid: payload.MessageSid,
+				waId: payload.WaId,
+				chatId,
+				requestUrl,
+				error: errorMessage,
+			});
 
 			const updated = await updateProcessingStatus(
 				payload.MessageSid,
@@ -92,11 +123,18 @@ async function handleWhatsAppMessage({
 }: {
 	payload: IncomingMessage;
 	requestUrl: string;
-}) {
-	console.log("[whatsapp:after] processing message", {
-		from: payload.From,
-		to: payload.To,
+}): Promise<string> {
+	const correlation: WhatsAppCorrelationIds = {
 		messageSid: payload.MessageSid,
+		waId: payload.WaId,
+	};
+
+	logWhatsAppEvent("info", {
+		event: "whatsapp.processing.started",
+		direction: "inbound",
+		...correlation,
+		fromNumber: payload.From,
+		toNumber: payload.To,
 	});
 
 	const client = createTwilioClient();
@@ -126,14 +164,20 @@ async function handleWhatsAppMessage({
 	 * To enable a user, add their WhatsApp phone number to the users table.
 	 */
 	if (!user) {
-		console.warn("[whatsapp:service] user not found for phone number", {
-			normalizedFrom,
-			messageSid: payload.MessageSid,
+		logWhatsAppEvent("warn", {
+			event: "whatsapp.processing.user_not_found",
+			direction: "inbound",
+			...correlation,
+			details: { normalizedFrom },
 		});
 		throw new Error(`User not found for phone: ${normalizedFrom}`);
 	}
 
 	const chatId = await resolveOrCreateChat(user.id, payload);
+	const correlationWithChat: WhatsAppCorrelationIds = {
+		...correlation,
+		chatId,
+	};
 	const existingMessages = await getChatMessages(chatId);
 	const attachments = extractAttachments(payload);
 
@@ -149,7 +193,7 @@ async function handleWhatsAppMessage({
 	});
 
 	await updateProcessingStatus(payload.MessageSid, "processing", requestUrl);
-	await trySendTypingIndicator(client, payload);
+	await trySendTypingIndicator(client, payload, correlationWithChat);
 
 	const history = convertToUIMessages([...existingMessages, inboundMessage]);
 
@@ -177,6 +221,7 @@ async function handleWhatsAppMessage({
 		to: normalizedFrom,
 		from: normalizedWhatsappFrom ?? undefined,
 		response: aiResponse,
+		correlation: correlationWithChat,
 	});
 
 	if (sendResult) {
@@ -201,19 +246,30 @@ async function handleWhatsAppMessage({
 		sendResult?.sid,
 		sendResult ? sendResult.status : "not_sent",
 	);
+
+	return chatId;
 }
 
 async function trySendTypingIndicator(
 	client: TwilioClient,
 	payload: IncomingMessage,
+	correlation: WhatsAppCorrelationIds,
 ): Promise<void> {
 	try {
-		await sendTypingIndicator(client, payload);
+		await sendTypingIndicator(client, payload, correlation);
 	} catch (error) {
-		console.error("[whatsapp:typing] failed to send indicator", error);
+		const errorMessage =
+			error instanceof Error ? error.message : String(error);
+
+		logWhatsAppEvent("error", {
+			event: "whatsapp.typing.failed",
+			direction: "outbound",
+			...correlation,
+			error: errorMessage,
+		});
 		await logTypingFailed(
 			payload.MessageSid,
-			error instanceof Error ? error.message : String(error),
+			errorMessage,
 		);
 	}
 }
@@ -223,16 +279,27 @@ async function trySendWhatsAppMessageWithRetry(params: {
 	to: string;
 	from?: string;
 	response: WhatsAppAIResponse;
+	correlation: WhatsAppCorrelationIds;
 }): Promise<{ sid: string; status: string } | null> {
 	try {
 		return await sendWhatsAppMessageWithRetry(params);
 	} catch (error) {
-		console.error("[whatsapp:send] failed to dispatch message after retries", error);
+		const errorMessage =
+			error instanceof Error ? error.message : String(error);
+
+		logWhatsAppEvent("error", {
+			event: "whatsapp.outbound.send_failed",
+			direction: "outbound",
+			...params.correlation,
+			toNumber: params.to,
+			fromNumber: params.from,
+			error: errorMessage,
+		});
 		await logSendFailed(
 			params.from,
 			params.to,
 			params.response,
-			error instanceof Error ? error.message : String(error),
+			errorMessage,
 		);
 		return null;
 	}
@@ -257,10 +324,26 @@ async function generateSafeAIResponse(
 	params: GenerateSafeAIResponseParams,
 ): Promise<WhatsAppAIResponse> {
 	const { chatId, inboundMessageId, history, payload, requestUrl } = params;
+	const model = myProvider.languageModel("chat-model");
+	const span = tracer.startSpan("llm.generate_whatsapp_response");
+
+	setWhatsAppSpanAttributes(span, {
+		event: "whatsapp.llm.generate",
+		direction: "internal",
+		messageSid: payload.MessageSid,
+		waId: payload.WaId,
+		chatId,
+		requestUrl,
+	});
+
+	span.setAttribute("llm.operation", "generateObject");
+	if (model.modelId) {
+		span.setAttribute("llm.model_id", model.modelId);
+	}
 
 	try {
 		const { object: aiResponse } = await generateObject({
-			model: myProvider.languageModel("chat-model"),
+			model,
 			system: buildSystemPrompt(payload),
 			messages: convertToModelMessages(history),
 			schema: whatsappResponseSchema,
@@ -274,9 +357,20 @@ async function generateSafeAIResponse(
 
 		// Validate the response
 		if (!isValidWhatsAppResponse(aiResponse)) {
-			console.warn("[whatsapp:ai] invalid response from LLM", {
+			span.setStatus({
+				code: SpanStatusCode.ERROR,
+				message: "invalid_response",
+			});
+
+			logWhatsAppEvent("warn", {
+				event: "whatsapp.llm.invalid_response",
+				direction: "internal",
+				messageSid: payload.MessageSid,
+				waId: payload.WaId,
 				chatId,
-				messageLength: aiResponse.message?.length ?? 0,
+				details: {
+					messageLength: aiResponse.message?.length ?? 0,
+				},
 			});
 
 			await logAIEscalation({
@@ -290,15 +384,23 @@ async function generateSafeAIResponse(
 			return FALLBACK_RESPONSE;
 		}
 
+		span.setStatus({ code: SpanStatusCode.OK });
 		return aiResponse;
 	} catch (error) {
 		const failureType = classifyAIError(error);
 		const errorMessage = getSafeErrorMessage(error);
 
-		console.error("[whatsapp:ai] LLM call failed", {
+		span.recordException(error as Error);
+		span.setStatus({ code: SpanStatusCode.ERROR, message: errorMessage });
+
+		logWhatsAppEvent("error", {
+			event: "whatsapp.llm.failed",
+			direction: "internal",
+			messageSid: payload.MessageSid,
+			waId: payload.WaId,
 			chatId,
-			failureType,
 			error: errorMessage,
+			details: { failureType },
 		});
 
 		await logAIEscalation({
@@ -310,5 +412,7 @@ async function generateSafeAIResponse(
 		});
 
 		return FALLBACK_RESPONSE;
+	} finally {
+		span.end();
 	}
 }
