@@ -16,6 +16,7 @@ import type { AIFailureType } from "@/lib/ai/safety";
 import type { IncomingMessage, WhatsAppAIResponse } from "./types";
 import { sourceLabel } from "./types";
 import { logWhatsAppEvent } from "./observability";
+import { normalizeWhatsAppNumber } from "./utils";
 
 export interface CreateInboundMessageParams {
 	chatId: string;
@@ -193,12 +194,14 @@ export async function logWebhookError(
 export async function logTypingFailed(
 	messageSid: string,
 	error: string,
+	conversationSid?: string,
 ): Promise<void> {
 	await saveWebhookLog({
 		source: sourceLabel,
 		status: "typing_failed",
 		messageSid,
 		error,
+		payload: conversationSid ? { conversationSid } : undefined,
 	});
 }
 
@@ -207,6 +210,7 @@ export async function logSendFailed(
 	to: string,
 	response: WhatsAppAIResponse,
 	error: string,
+	errorDetails?: Record<string, unknown>,
 ): Promise<void> {
 	await saveWebhookLog({
 		source: sourceLabel,
@@ -215,7 +219,7 @@ export async function logSendFailed(
 		fromNumber: from,
 		toNumber: to,
 		error,
-		payload: response,
+		payload: errorDetails ? { response, errorDetails } : response,
 	});
 }
 
@@ -223,12 +227,14 @@ export async function createPendingLog(
 	requestUrl: string,
 	payload: IncomingMessage,
 ) {
+	const fromNumber = normalizeWhatsAppNumber(payload.From);
+	const toNumber = normalizeWhatsAppNumber(payload.To);
 	return createPendingWebhookLog({
 		source: sourceLabel,
 		requestUrl,
 		messageSid: payload.MessageSid,
-		fromNumber: payload.From,
-		toNumber: payload.To,
+		fromNumber,
+		toNumber,
 		payload,
 	});
 }

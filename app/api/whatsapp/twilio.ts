@@ -13,6 +13,7 @@ import {
 	setWhatsAppSpanAttributes,
 	type WhatsAppCorrelationIds,
 } from "./observability";
+import { formatWhatsAppNumber } from "./utils";
 
 export type TwilioClient = twilio.Twilio;
 
@@ -42,6 +43,31 @@ export function validateTwilioRequest(
 		return false;
 	}
 	return twilio.validateRequest(authToken, signature, url, params);
+}
+
+export interface TwilioErrorMetadata {
+	status?: number;
+	code?: number;
+	moreInfo?: string;
+	details?: Record<string, unknown>;
+}
+
+export function getTwilioErrorMetadata(
+	error: unknown,
+): TwilioErrorMetadata | undefined {
+	if (error instanceof RestException) {
+		return {
+			status: error.status,
+			code: error.code,
+			moreInfo: error.moreInfo,
+			details:
+				error.details && typeof error.details === "object"
+					? (error.details as Record<string, unknown>)
+					: undefined,
+		};
+	}
+
+	return undefined;
 }
 
 export async function sendTypingIndicator(
@@ -150,15 +176,18 @@ export async function sendWhatsAppMessage({
 }: SendMessageParams): Promise<SendMessageResult> {
 	const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID;
 	const buttonsContentSid = process.env.TWILIO_WHATSAPP_BUTTONS_CONTENT_SID;
+	const fromNumber = from ?? process.env.TWILIO_WHATSAPP_FROM;
+	const formattedTo = formatWhatsAppNumber(to);
+	const formattedFrom = fromNumber ? formatWhatsAppNumber(fromNumber) : undefined;
 
 	const payload: MessageListInstanceCreateOptions = {
-		to,
+		to: formattedTo,
 	};
 
 	if (messagingServiceSid) {
 		payload.messagingServiceSid = messagingServiceSid;
-	} else if (from) {
-		payload.from = from;
+	} else if (formattedFrom) {
+		payload.from = formattedFrom;
 	}
 
 	if (response.mediaUrl) {
@@ -204,9 +233,9 @@ export async function sendWhatsAppMessage({
 			fromNumber: from,
 		});
 		span.setAttribute("twilio.operation", "messages.create");
-		span.setAttribute("twilio.to", to);
-		if (from) {
-			span.setAttribute("twilio.from", from);
+		span.setAttribute("twilio.to", formattedTo);
+		if (formattedFrom) {
+			span.setAttribute("twilio.from", formattedFrom);
 		}
 		if (messagingServiceSid) {
 			span.setAttribute("twilio.messaging_service_sid", messagingServiceSid);

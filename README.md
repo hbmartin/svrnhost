@@ -127,7 +127,7 @@ Choose ONE sender method:
 | Variable | Description |
 |----------|-------------|
 | `TWILIO_MESSAGING_SERVICE_SID` | **(Recommended)** Messaging Service SID for smart routing |
-| `TWILIO_WHATSAPP_FROM` | Direct sender number in format `whatsapp:+15551234567` |
+| `TWILIO_WHATSAPP_FROM` | Direct sender number in E.164; `whatsapp:` prefix optional |
 
 Optional configuration:
 

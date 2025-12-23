@@ -34,6 +34,12 @@ const DEFAULT_CONFIG: Required<Omit<RetryConfig, "shouldRetry" | "context">> = {
 	maxDelayMs: 30000,
 };
 
+function attachAttemptsToError(error: unknown, attempts: number): void {
+	if (error && typeof error === "object") {
+		(error as { attempts?: number }).attempts = attempts;
+	}
+}
+
 /**
  * Calculate delay with exponential backoff and jitter.
  * Formula: min(maxDelay, baseDelay * 2^attempt) + random jitter (0-100ms)
@@ -72,6 +78,14 @@ export async function withRetry<T>(
 		throw new Error(`withRetry: maxAttempts must be at least 1, got ${maxAttempts}`);
 	}
 
+	if (!Number.isFinite(baseDelayMs)) {
+		throw new Error(`withRetry: baseDelayMs must be a finite number, got ${baseDelayMs}`);
+	}
+
+	if (!Number.isFinite(maxDelayMs)) {
+		throw new Error(`withRetry: maxDelayMs must be a finite number, got ${maxDelayMs}`);
+	}
+
 	if (baseDelayMs < 0) {
 		throw new Error(`withRetry: baseDelayMs must be non-negative, got ${baseDelayMs}`);
 	}
@@ -93,25 +107,28 @@ export async function withRetry<T>(
 			return { result, attempts: attempt + 1 };
 		} catch (error) {
 			lastError = error;
+			const attempts = attempt + 1;
 			const isLastAttempt = attempt === maxAttempts - 1;
 
 			if (isLastAttempt) {
 				console.error(`[retry:${context}] all ${maxAttempts} attempts failed`, {
 					error: error instanceof Error ? error.message : String(error),
 				});
+				attachAttemptsToError(error, attempts);
 				break;
 			}
 
 			if (!shouldRetry(error, attempt)) {
 				console.log(`[retry:${context}] error is not retryable, giving up`, {
-					attempt: attempt + 1,
+					attempt: attempts,
 					error: error instanceof Error ? error.message : String(error),
 				});
+				attachAttemptsToError(error, attempts);
 				break;
 			}
 
 			const delayMs = calculateDelay(attempt, baseDelayMs, maxDelayMs);
-			console.log(`[retry:${context}] attempt ${attempt + 1} failed, retrying in ${Math.round(delayMs)}ms`, {
+			console.log(`[retry:${context}] attempt ${attempts} failed, retrying in ${Math.round(delayMs)}ms`, {
 				error: error instanceof Error ? error.message : String(error),
 			});
 
