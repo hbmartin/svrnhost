@@ -40,6 +40,7 @@ import {
 import {
 	buildSystemPrompt,
 	extractAttachments,
+	getAttemptsFromError,
 	normalizeWhatsAppNumber,
 } from "./utils";
 import {
@@ -292,10 +293,7 @@ async function trySendWhatsAppMessageWithRetry(params: {
 		const errorMessage =
 			error instanceof Error ? error.message : String(error);
 		const twilioMetadata = getTwilioErrorMetadata(error);
-		const attempts =
-			error && typeof error === "object"
-				? (error as { attempts?: number }).attempts
-				: undefined;
+		const attempts = getAttemptsFromError(error);
 		const errorDetails = {
 			attempts,
 			twilioStatus: twilioMetadata?.status,

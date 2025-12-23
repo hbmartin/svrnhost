@@ -3,17 +3,68 @@ import type { Attachment } from "@/lib/types";
 import type { IncomingMessage } from "./types";
 
 const WHATSAPP_PREFIX = "whatsapp:";
+const E164_REGEX = /^\+[1-9]\d{1,14}$/;
+
+function hasWhatsAppPrefix(value: string) {
+	return value.toLowerCase().startsWith(WHATSAPP_PREFIX);
+}
+
+export interface ErrorWithAttempts {
+	attempts?: number;
+}
+
+function isErrorWithAttempts(error: unknown): error is ErrorWithAttempts {
+	return !!error && typeof error === "object" && "attempts" in error;
+}
+
+export function getAttemptsFromError(error: unknown): number | undefined {
+	if (!isErrorWithAttempts(error)) {
+		return undefined;
+	}
+
+	const { attempts } = error;
+
+	return typeof attempts === "number" && Number.isFinite(attempts)
+		? attempts
+		: undefined;
+}
 
 export function normalizeWhatsAppNumber(value: string) {
-	return value.startsWith(WHATSAPP_PREFIX)
-		? value.slice(WHATSAPP_PREFIX.length)
-		: value;
+	const trimmedValue = value.trim();
+	const normalizedValue = hasWhatsAppPrefix(trimmedValue)
+		? trimmedValue.slice(WHATSAPP_PREFIX.length)
+		: trimmedValue;
+
+	if (!E164_REGEX.test(normalizedValue)) {
+		throw new Error(
+			`Invalid WhatsApp number: "${normalizedValue}" is not in E.164 format.`,
+		);
+	}
+
+	return normalizedValue;
 }
 
 export function formatWhatsAppNumber(value: string) {
-	return value.startsWith(WHATSAPP_PREFIX)
-		? value
-		: `${WHATSAPP_PREFIX}${value}`;
+	const trimmedValue = value.trim();
+
+	if (trimmedValue.length === 0) {
+		throw new TypeError(
+			`Invalid WhatsApp number: "${value}" is empty or whitespace.`,
+		);
+	}
+
+	const formattedValue = hasWhatsAppPrefix(trimmedValue)
+		? `${WHATSAPP_PREFIX}${trimmedValue.slice(WHATSAPP_PREFIX.length)}`
+		: `${WHATSAPP_PREFIX}${trimmedValue}`;
+	const normalizedValue = formattedValue.slice(WHATSAPP_PREFIX.length);
+
+	if (!E164_REGEX.test(normalizedValue)) {
+		throw new Error(
+			`Invalid WhatsApp number: "${normalizedValue}" is not in E.164 format.`,
+		);
+	}
+
+	return formattedValue;
 }
 
 export function extractAttachments(payload: IncomingMessage): Attachment[] {
