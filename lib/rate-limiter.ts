@@ -118,24 +118,30 @@ export class TokenBucketRateLimiter {
 		const startTime = Date.now();
 
 		while (true) {
-			if (this.tryAcquire(key)) {
+			const now = Date.now();
+			this.maybeCleanup(now);
+			const bucket = this.getBucket(key, now);
+
+			// Try to acquire a token
+			if (bucket.tokens >= 1) {
+				bucket.tokens -= 1;
 				return;
 			}
 
-			const elapsed = Date.now() - startTime;
+			// Check if we've exceeded max wait time
+			const elapsed = now - startTime;
 			if (elapsed >= maxWaitMs) {
 				throw new Error(`Rate limit exceeded for key: ${key}. Could not acquire token within ${maxWaitMs}ms`);
 			}
 
 			// Calculate wait time until next token is available
-			const now = Date.now();
-			const bucket = this.getBucket(key, now);
 			const tokensNeeded = 1 - bucket.tokens;
 			const waitMs = Math.ceil((tokensNeeded / this.tokensPerSecond) * 1000);
 
 			// Wait for the shorter of: time until next token, or remaining allowed wait time
+			// Minimum 1ms wait ensures event loop yields to prevent busy-wait CPU spinning
 			const remainingWait = maxWaitMs - elapsed;
-			const actualWait = Math.min(waitMs + 10, remainingWait); // +10ms buffer
+			const actualWait = Math.max(1, Math.min(waitMs + 10, remainingWait)); // +10ms buffer
 
 			await new Promise((resolve) => setTimeout(resolve, actualWait));
 		}

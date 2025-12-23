@@ -68,6 +68,10 @@ export async function withRetry<T>(
 	const shouldRetry = config.shouldRetry ?? (() => true);
 	const context = config.context ?? "operation";
 
+	if (maxAttempts < 1) {
+		throw new Error(`withRetry: maxAttempts must be at least 1, got ${maxAttempts}`);
+	}
+
 	let lastError: unknown;
 
 	for (let attempt = 0; attempt < maxAttempts; attempt++) {
