@@ -2,11 +2,18 @@ import { svrnHostSystemPrompt } from "@/lib/ai/prompts";
 import type { Attachment } from "@/lib/types";
 import type { IncomingMessage } from "./types";
 
+const WHATSAPP_PREFIX = "whatsapp:";
+
 export function normalizeWhatsAppNumber(value: string) {
-	if (value.startsWith("whatsapp:")) {
-		return value;
-	}
-	return `whatsapp:${value}`;
+	return value.startsWith(WHATSAPP_PREFIX)
+		? value.slice(WHATSAPP_PREFIX.length)
+		: value;
+}
+
+export function formatWhatsAppNumber(value: string) {
+	return value.startsWith(WHATSAPP_PREFIX)
+		? value
+		: `${WHATSAPP_PREFIX}${value}`;
 }
 
 export function extractAttachments(payload: IncomingMessage): Attachment[] {

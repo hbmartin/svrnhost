@@ -105,8 +105,8 @@ export async function processWhatsAppMessage({
 			if (!updated) {
 				await logProcessingError(
 					payload.MessageSid,
-					payload.From,
-					payload.To,
+					normalizeWhatsAppNumber(payload.From),
+					normalizeWhatsAppNumber(payload.To),
 					requestUrl,
 					errorMessage,
 				);

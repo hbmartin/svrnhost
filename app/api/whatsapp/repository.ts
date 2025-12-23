@@ -16,6 +16,7 @@ import type { AIFailureType } from "@/lib/ai/safety";
 import type { IncomingMessage, WhatsAppAIResponse } from "./types";
 import { sourceLabel } from "./types";
 import { logWhatsAppEvent } from "./observability";
+import { normalizeWhatsAppNumber } from "./utils";
 
 export interface CreateInboundMessageParams {
 	chatId: string;
@@ -223,12 +224,14 @@ export async function createPendingLog(
 	requestUrl: string,
 	payload: IncomingMessage,
 ) {
+	const fromNumber = normalizeWhatsAppNumber(payload.From);
+	const toNumber = normalizeWhatsAppNumber(payload.To);
 	return createPendingWebhookLog({
 		source: sourceLabel,
 		requestUrl,
 		messageSid: payload.MessageSid,
-		fromNumber: payload.From,
-		toNumber: payload.To,
+		fromNumber,
+		toNumber,
 		payload,
 	});
 }

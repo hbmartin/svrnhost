@@ -13,6 +13,7 @@ import {
 	setWhatsAppSpanAttributes,
 	type WhatsAppCorrelationIds,
 } from "./observability";
+import { formatWhatsAppNumber } from "./utils";
 
 export type TwilioClient = twilio.Twilio;
 
@@ -150,15 +151,17 @@ export async function sendWhatsAppMessage({
 }: SendMessageParams): Promise<SendMessageResult> {
 	const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID;
 	const buttonsContentSid = process.env.TWILIO_WHATSAPP_BUTTONS_CONTENT_SID;
+	const formattedTo = formatWhatsAppNumber(to);
+	const formattedFrom = from ? formatWhatsAppNumber(from) : undefined;
 
 	const payload: MessageListInstanceCreateOptions = {
-		to,
+		to: formattedTo,
 	};
 
 	if (messagingServiceSid) {
 		payload.messagingServiceSid = messagingServiceSid;
-	} else if (from) {
-		payload.from = from;
+	} else if (formattedFrom) {
+		payload.from = formattedFrom;
 	}
 
 	if (response.mediaUrl) {
@@ -204,9 +207,9 @@ export async function sendWhatsAppMessage({
 			fromNumber: from,
 		});
 		span.setAttribute("twilio.operation", "messages.create");
-		span.setAttribute("twilio.to", to);
-		if (from) {
-			span.setAttribute("twilio.from", from);
+		span.setAttribute("twilio.to", formattedTo);
+		if (formattedFrom) {
+			span.setAttribute("twilio.from", formattedFrom);
 		}
 		if (messagingServiceSid) {
 			span.setAttribute("twilio.messaging_service_sid", messagingServiceSid);

@@ -72,6 +72,14 @@ export async function withRetry<T>(
 		throw new Error(`withRetry: maxAttempts must be at least 1, got ${maxAttempts}`);
 	}
 
+	if (!Number.isFinite(baseDelayMs)) {
+		throw new Error(`withRetry: baseDelayMs must be a finite number, got ${baseDelayMs}`);
+	}
+
+	if (!Number.isFinite(maxDelayMs)) {
+		throw new Error(`withRetry: maxDelayMs must be a finite number, got ${maxDelayMs}`);
+	}
+
 	if (baseDelayMs < 0) {
 		throw new Error(`withRetry: baseDelayMs must be non-negative, got ${baseDelayMs}`);
 	}
