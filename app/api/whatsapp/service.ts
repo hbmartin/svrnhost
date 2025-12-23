@@ -28,6 +28,7 @@ import {
 	createTwilioClient,
 	sendTypingIndicator,
 	sendWhatsAppMessageWithRetry,
+	getTwilioErrorMetadata,
 	type TwilioClient,
 } from "./twilio";
 import {
@@ -260,16 +261,19 @@ async function trySendTypingIndicator(
 	} catch (error) {
 		const errorMessage =
 			error instanceof Error ? error.message : String(error);
+		const conversationSid = payload.ConversationSid;
 
 		logWhatsAppEvent("error", {
 			event: "whatsapp.typing.failed",
 			direction: "outbound",
 			...correlation,
 			error: errorMessage,
+			details: conversationSid ? { conversationSid } : undefined,
 		});
 		await logTypingFailed(
 			payload.MessageSid,
 			errorMessage,
+			conversationSid,
 		);
 	}
 }
@@ -286,6 +290,21 @@ async function trySendWhatsAppMessageWithRetry(params: {
 	} catch (error) {
 		const errorMessage =
 			error instanceof Error ? error.message : String(error);
+		const twilioMetadata = getTwilioErrorMetadata(error);
+		const attempts =
+			error && typeof error === "object"
+				? (error as { attempts?: number }).attempts
+				: undefined;
+		const errorDetails = {
+			attempts,
+			twilioStatus: twilioMetadata?.status,
+			twilioCode: twilioMetadata?.code,
+			twilioMoreInfo: twilioMetadata?.moreInfo,
+			twilioDetails: twilioMetadata?.details,
+		};
+		const hasErrorDetails = Object.values(errorDetails).some(
+			(value) => value !== undefined,
+		);
 
 		logWhatsAppEvent("error", {
 			event: "whatsapp.outbound.send_failed",
@@ -294,12 +313,14 @@ async function trySendWhatsAppMessageWithRetry(params: {
 			toNumber: params.to,
 			fromNumber: params.from,
 			error: errorMessage,
+			details: hasErrorDetails ? errorDetails : undefined,
 		});
 		await logSendFailed(
 			params.from,
 			params.to,
 			params.response,
 			errorMessage,
+			hasErrorDetails ? errorDetails : undefined,
 		);
 		return null;
 	}

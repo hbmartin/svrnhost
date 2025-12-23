@@ -45,6 +45,31 @@ export function validateTwilioRequest(
 	return twilio.validateRequest(authToken, signature, url, params);
 }
 
+export interface TwilioErrorMetadata {
+	status?: number;
+	code?: number;
+	moreInfo?: string;
+	details?: Record<string, unknown>;
+}
+
+export function getTwilioErrorMetadata(
+	error: unknown,
+): TwilioErrorMetadata | undefined {
+	if (error instanceof RestException) {
+		return {
+			status: error.status,
+			code: error.code,
+			moreInfo: error.moreInfo,
+			details:
+				error.details && typeof error.details === "object"
+					? (error.details as Record<string, unknown>)
+					: undefined,
+		};
+	}
+
+	return undefined;
+}
+
 export async function sendTypingIndicator(
 	client: TwilioClient,
 	payload: IncomingMessage,
@@ -151,8 +176,9 @@ export async function sendWhatsAppMessage({
 }: SendMessageParams): Promise<SendMessageResult> {
 	const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID;
 	const buttonsContentSid = process.env.TWILIO_WHATSAPP_BUTTONS_CONTENT_SID;
+	const fromNumber = from ?? process.env.TWILIO_WHATSAPP_FROM;
 	const formattedTo = formatWhatsAppNumber(to);
-	const formattedFrom = from ? formatWhatsAppNumber(from) : undefined;
+	const formattedFrom = fromNumber ? formatWhatsAppNumber(fromNumber) : undefined;
 
 	const payload: MessageListInstanceCreateOptions = {
 		to: formattedTo,

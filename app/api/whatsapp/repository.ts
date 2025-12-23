@@ -194,12 +194,14 @@ export async function logWebhookError(
 export async function logTypingFailed(
 	messageSid: string,
 	error: string,
+	conversationSid?: string,
 ): Promise<void> {
 	await saveWebhookLog({
 		source: sourceLabel,
 		status: "typing_failed",
 		messageSid,
 		error,
+		payload: conversationSid ? { conversationSid } : undefined,
 	});
 }
 
@@ -208,6 +210,7 @@ export async function logSendFailed(
 	to: string,
 	response: WhatsAppAIResponse,
 	error: string,
+	errorDetails?: Record<string, unknown>,
 ): Promise<void> {
 	await saveWebhookLog({
 		source: sourceLabel,
@@ -216,7 +219,7 @@ export async function logSendFailed(
 		fromNumber: from,
 		toNumber: to,
 		error,
-		payload: response,
+		payload: errorDetails ? { response, errorDetails } : response,
 	});
 }
 
