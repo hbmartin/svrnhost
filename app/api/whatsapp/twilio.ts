@@ -275,9 +275,16 @@ function isTwilioErrorRetryable(error: unknown): boolean {
 }
 
 /**
+ * Sender-level rate limit key.
+ * Twilio's 80 MPS limit applies per WhatsApp Business sender, not per recipient.
+ * All outbound messages share this single bucket regardless of recipient.
+ */
+const WHATSAPP_SENDER_RATE_LIMIT_KEY = "whatsapp-sender";
+
+/**
  * Send a WhatsApp message with rate limiting and retry logic.
  *
- * - Rate limiting: Uses token bucket to respect 80 MPS Twilio limit
+ * - Rate limiting: Sender-level token bucket to respect Twilio's 80 MPS limit per WhatsApp sender
  * - Retry: Exponential backoff for transient failures
  * - Error classification: Distinguishes retryable vs permanent failures
  *
@@ -288,9 +295,10 @@ export async function sendWhatsAppMessageWithRetry(
 ): Promise<SendMessageResult> {
 	const { to, correlation } = params;
 
-	// Acquire rate limit token (waits up to 5 seconds)
+	// Acquire sender-level rate limit token (waits up to 5 seconds)
+	// Twilio's 80 MPS quota is per WhatsApp sender, not per recipient
 	try {
-		await whatsappRateLimiter.acquire(to);
+		await whatsappRateLimiter.acquire(WHATSAPP_SENDER_RATE_LIMIT_KEY);
 	} catch (rateLimitError) {
 		logWhatsAppEvent("error", {
 			event: "whatsapp.outbound.rate_limit_failed",

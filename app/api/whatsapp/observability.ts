@@ -34,8 +34,12 @@ export function logWhatsAppEvent(
 			vercelEnv: process.env.VERCEL_ENV,
 			...fields,
 		});
-	} catch {
-		// Logging must never break the handler
+	} catch (loggingError) {
+		// Logging must never break the handler, but report failures for debugging
+		console.error("[whatsapp] logging failed", {
+			loggingError: loggingError instanceof Error ? loggingError.message : String(loggingError),
+			originalEvent: fields.event,
+		});
 	}
 }
 
@@ -69,5 +73,8 @@ export function setWhatsAppSpanAttributes(
 	}
 	if (fields.status) {
 		span.setAttribute("whatsapp.status", fields.status);
+	}
+	if (fields.error) {
+		span.setAttribute("whatsapp.error", fields.error);
 	}
 }
