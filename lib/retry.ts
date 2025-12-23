@@ -72,6 +72,16 @@ export async function withRetry<T>(
 		throw new Error(`withRetry: maxAttempts must be at least 1, got ${maxAttempts}`);
 	}
 
+	if (baseDelayMs < 0) {
+		throw new Error(`withRetry: baseDelayMs must be non-negative, got ${baseDelayMs}`);
+	}
+
+	if (maxDelayMs < baseDelayMs) {
+		throw new Error(
+			`withRetry: maxDelayMs must be >= baseDelayMs, got maxDelayMs=${maxDelayMs}, baseDelayMs=${baseDelayMs}`,
+		);
+	}
+
 	let lastError: unknown;
 
 	for (let attempt = 0; attempt < maxAttempts; attempt++) {

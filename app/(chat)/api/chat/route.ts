@@ -234,7 +234,7 @@ export async function POST(request: Request) {
 		let finalMergedUsage: AppUsage | undefined;
 
 		const stream = createUIMessageStream({
-			execute: ({ writer: dataStream }) => {
+			execute: async ({ writer: dataStream }) => {
 				logChatEvent("starting_stream_text", {
 					uiMessageCount: uiMessages.length,
 					selectedChatModel,
@@ -245,7 +245,7 @@ export async function POST(request: Request) {
 				const result = streamText({
 					model: myProvider.languageModel(selectedChatModel),
 					system: systemPrompt({ selectedChatModel, requestHints }),
-					messages: convertToModelMessages(uiMessages),
+					messages: await convertToModelMessages(uiMessages),
 					stopWhen: stepCountIs(5),
 					experimental_activeTools: ["getWeather", "listUpcomingEvents"],
 					experimental_transform: smoothStream({ chunking: "word" }),

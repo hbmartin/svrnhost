@@ -1,6 +1,6 @@
 import type {
-  CoreAssistantMessage,
-  CoreToolMessage,
+  AssistantModelMessage,
+  ToolModelMessage,
   UIMessage,
   UIMessagePart,
 } from 'ai';
@@ -64,7 +64,7 @@ export function generateUUID(): string {
   throw new Error('crypto.randomUUID is not available in this environment');
 }
 
-type ResponseMessageWithoutId = CoreToolMessage | CoreAssistantMessage;
+type ResponseMessageWithoutId = ToolModelMessage | AssistantModelMessage;
 type ResponseMessage = ResponseMessageWithoutId & { id: string };
 
 export function getMostRecentUserMessage(messages: UIMessage[]) {

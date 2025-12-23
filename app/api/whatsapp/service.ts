@@ -345,7 +345,7 @@ async function generateSafeAIResponse(
 		const { object: aiResponse } = await generateObject({
 			model,
 			system: buildSystemPrompt(payload),
-			messages: convertToModelMessages(history),
+			messages: await convertToModelMessages(history),
 			schema: whatsappResponseSchema,
 			maxRetries: LLM_CONFIG.maxRetries,
 			abortSignal: AbortSignal.timeout(LLM_CONFIG.timeoutMs),
