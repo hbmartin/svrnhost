@@ -11,6 +11,8 @@
  * where messages typically arrive on the same instance in quick succession.
  */
 
+import { WHATSAPP_LIMITS } from "@/lib/config/limits";
+
 interface BucketState {
 	tokens: number;
 	lastRefill: number;
@@ -169,6 +171,6 @@ export class TokenBucketRateLimiter {
  * Uses Twilio's 80 MPS limit for WhatsApp Business API.
  */
 export const whatsappRateLimiter = new TokenBucketRateLimiter({
-	tokensPerSecond: 80,
-	bucketSize: 80,
+	tokensPerSecond: WHATSAPP_LIMITS.senderRateLimitPerSecond,
+	bucketSize: WHATSAPP_LIMITS.senderRateLimitBurst,
 });

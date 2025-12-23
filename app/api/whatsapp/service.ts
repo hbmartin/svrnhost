@@ -31,6 +31,7 @@ import {
 	getTwilioErrorMetadata,
 	type TwilioClient,
 } from "./twilio";
+import { getTwilioConfig } from "@/lib/config/server";
 import {
 	type IncomingMessage,
 	type WhatsAppAIResponse,
@@ -139,9 +140,9 @@ async function handleWhatsAppMessage({
 	});
 
 	const client = createTwilioClient();
-	const whatsappFrom = process.env.TWILIO_WHATSAPP_FROM;
+	const { whatsappFrom, messagingServiceSid } = getTwilioConfig();
 
-	if (!whatsappFrom && !process.env.TWILIO_MESSAGING_SERVICE_SID) {
+	if (!whatsappFrom && !messagingServiceSid) {
 		throw new Error(
 			"TWILIO_WHATSAPP_FROM or TWILIO_MESSAGING_SERVICE_SID is required",
 		);

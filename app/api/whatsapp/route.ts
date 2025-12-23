@@ -25,6 +25,9 @@ import { processWhatsAppMessage } from "./service";
 import { validateTwilioRequest } from "./twilio";
 import { incomingMessageSchema } from "./types";
 import { logWhatsAppEvent } from "./observability";
+import { getTwilioConfig } from "@/lib/config/server";
+
+const twilioConfig = getTwilioConfig();
 
 export async function POST(request: Request) {
 	const rawBody = await request.text();
@@ -78,7 +81,7 @@ export async function POST(request: Request) {
 
 	const payload = parsedPayload.data;
 	const signature = request.headers.get("x-twilio-signature");
-	const webhookUrl = process.env.TWILIO_WHATSAPP_WEBHOOK_URL?.trim();
+	const webhookUrl = twilioConfig.whatsappWebhookUrl;
 
 	if (!signature) {
 		logWhatsAppEvent("warn", {
@@ -92,28 +95,6 @@ export async function POST(request: Request) {
 			logWebhookError("missing_signature", undefined, undefined, payload),
 		);
 		return new Response("Forbidden", { status: 403 });
-	}
-
-	if (!process.env.TWILIO_AUTH_TOKEN) {
-		logWhatsAppEvent("error", {
-			event: "whatsapp.inbound.misconfigured",
-			direction: "inbound",
-			messageSid: payload.MessageSid,
-			waId: payload.WaId,
-			error: "TWILIO_AUTH_TOKEN missing",
-		});
-		return new Response("Server misconfigured", { status: 500 });
-	}
-
-	if (!webhookUrl) {
-		logWhatsAppEvent("error", {
-			event: "whatsapp.inbound.misconfigured",
-			direction: "inbound",
-			messageSid: payload.MessageSid,
-			waId: payload.WaId,
-			error: "TWILIO_WHATSAPP_WEBHOOK_URL missing",
-		});
-		return new Response("Server misconfigured", { status: 500 });
 	}
 
 	const isValidRequest = validateTwilioRequest(

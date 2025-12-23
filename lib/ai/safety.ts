@@ -8,19 +8,20 @@
  */
 
 import type { WhatsAppAIResponse } from "@/app/api/whatsapp/types";
+import { LLM_LIMITS } from "@/lib/config/limits";
 
 /**
  * Configuration for LLM calls in WhatsApp context.
  */
 export const LLM_CONFIG = {
 	/** Timeout in milliseconds. 30 seconds is reasonable for conversational AI. */
-	timeoutMs: 30_000,
+	timeoutMs: LLM_LIMITS.timeoutMs,
 
 	/** Maximum retries for transient failures (handled by AI SDK). */
-	maxRetries: 2,
+	maxRetries: LLM_LIMITS.maxRetries,
 
 	/** Minimum response message length to be considered valid. */
-	minResponseLength: 1,
+	minResponseLength: LLM_LIMITS.minResponseLength,
 } as const;
 
 /**

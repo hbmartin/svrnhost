@@ -6,6 +6,7 @@ import {
 	wrapLanguageModel,
 } from "ai";
 import { isTestEnvironment } from "../constants";
+import { getAiConfig } from "@/lib/config/server";
 
 let hasLoggedProviderConfig = false;
 
@@ -14,13 +15,12 @@ const logProviderConfig = () => {
 		return;
 	}
 
+	const aiConfig = getAiConfig();
 	const providerConfigSnapshot = {
 		nodeEnv: process.env.NODE_ENV,
-		hasOpenAiKey: Boolean(process.env.OPENAI_API_KEY),
-		hasAnthropicKey: Boolean(process.env.ANTHROPIC_API_KEY),
-		hasVercelAiKey: Boolean(
-			process.env.AI_GATEWAY_API_KEY ?? process.env.VERCEL_AI_API_KEY,
-		),
+		hasOpenAiKey: aiConfig.hasOpenAiKey,
+		hasAnthropicKey: aiConfig.hasAnthropicKey,
+		hasVercelAiKey: Boolean(aiConfig.aiGatewayApiKey),
 	};
 
 	if (
