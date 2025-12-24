@@ -208,5 +208,22 @@ export const listUpcomingEvents = tool({
 	description:
 		"List all upcoming SVRN events with schedule, venue, and RSVP status.",
 	inputSchema: z.object({}),
+	strict: true,
+	inputExamples: [{ input: {} }],
 	execute: async (_input): Promise<EventsPayload> => events,
+	toModelOutput: async ({ output }) => {
+		// Provide a concise summary to the model instead of the full event payload
+		// The full data is still available in the UI for rendering event cards
+		const eventSummaries = output.events
+			.map(
+				(e) =>
+					`- ${e.title} on ${e.date} at ${e.time} in ${e.venue.city}, ${e.venue.state} (${e.guests} guests, ${e.status})`,
+			)
+			.join("\n");
+
+		return {
+			type: "text" as const,
+			value: `${output.platform} - ${output.section}\n${output.description}\n\nUpcoming Events (${output.events.length}):\n${eventSummaries}`,
+		};
+	},
 });

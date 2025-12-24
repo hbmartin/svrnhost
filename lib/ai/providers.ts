@@ -1,4 +1,5 @@
 import { anthropic } from "@ai-sdk/anthropic";
+import { devToolsMiddleware } from "@ai-sdk/devtools";
 import { openai } from "@ai-sdk/openai";
 import {
 	customProvider,
@@ -6,7 +7,7 @@ import {
 	wrapLanguageModel,
 } from "ai";
 import { getAiConfig } from "@/lib/config/server";
-import { isTestEnvironment } from "../constants";
+import { isDevelopmentEnvironment, isTestEnvironment } from "../constants";
 
 let hasLoggedProviderConfig = false;
 
@@ -57,21 +58,33 @@ export const myProvider = isTestEnvironment
 		})()
 	: customProvider({
 			languageModels: {
-				"chat-model": openai.languageModel("gpt-5-mini"),
+				"chat-model": wrapLanguageModel({
+					model: openai.languageModel("gpt-5-mini"),
+					middleware: isDevelopmentEnvironment ? devToolsMiddleware() : [],
+				}),
 				"chat-model-reasoning": wrapLanguageModel({
 					model: anthropic.languageModel("claude-haiku-4-5"),
-					middleware: defaultSettingsMiddleware({
-						settings: {
-							providerOptions: {
-								anthropic: {
-									thinking: { type: "enabled" },
-									sendReasoning: true,
+					middleware: [
+						defaultSettingsMiddleware({
+							settings: {
+								providerOptions: {
+									anthropic: {
+										thinking: { type: "enabled" },
+										sendReasoning: true,
+									},
 								},
 							},
-						},
-					}),
+						}),
+						...(isDevelopmentEnvironment ? [devToolsMiddleware()] : []),
+					],
 				}),
-				"title-model": openai.languageModel("gpt-4o-mini"),
-				"artifact-model": openai.languageModel("gpt-4o-mini"),
+				"title-model": wrapLanguageModel({
+					model: openai.languageModel("gpt-4o-mini"),
+					middleware: isDevelopmentEnvironment ? devToolsMiddleware() : [],
+				}),
+				"artifact-model": wrapLanguageModel({
+					model: openai.languageModel("gpt-4o-mini"),
+					middleware: isDevelopmentEnvironment ? devToolsMiddleware() : [],
+				}),
 			},
 		});
