@@ -135,6 +135,17 @@ describe("lib/utils", () => {
 		it("returns empty array for non-existent key", () => {
 			expect(getLocalStorage("nonExistentKey")).toEqual([]);
 		});
+
+		it("returns empty array when window is undefined (server-side)", () => {
+			const originalWindow = globalThis.window;
+			// @ts-expect-error - Temporarily delete window to simulate SSR
+			delete globalThis.window;
+
+			expect(getLocalStorage("anyKey")).toEqual([]);
+
+			// Restore window
+			globalThis.window = originalWindow;
+		});
 	});
 
 	describe("generateUUID", () => {

@@ -33,6 +33,23 @@ describe("/api/files/upload POST", () => {
 		expect(response.status).toBe(400);
 	});
 
+	it("returns 400 when no file is provided", async () => {
+		mocks.auth.mockResolvedValue({ user: { id: "user-1" } });
+
+		const formData = new FormData();
+
+		const request = {
+			body: {},
+			formData: async () => formData,
+		} as unknown as Request;
+
+		const response = await POST(request);
+
+		expect(response.status).toBe(400);
+		const body = await response.json();
+		expect(body.error).toBe("No file uploaded");
+	});
+
 	it("rejects invalid file types", async () => {
 		mocks.auth.mockResolvedValue({ user: { id: "user-1" } });
 
@@ -78,5 +95,44 @@ describe("/api/files/upload POST", () => {
 		expect(response.status).toBe(200);
 		const body = await response.json();
 		expect(body.url).toBe("https://example.com/file.png");
+	});
+
+	it("returns 500 when blob upload fails", async () => {
+		mocks.auth.mockResolvedValue({ user: { id: "user-1" } });
+		mocks.put.mockRejectedValue(new Error("Blob storage error"));
+
+		const file = Object.assign(new Blob(["content"], { type: "image/png" }), {
+			name: "file.png",
+			arrayBuffer: async () => new ArrayBuffer(8),
+		});
+		const request = {
+			body: {},
+			formData: async () => ({
+				get: () => file,
+			}),
+		} as unknown as Request;
+
+		const response = await POST(request);
+
+		expect(response.status).toBe(500);
+		const body = await response.json();
+		expect(body.error).toBe("Upload failed");
+	});
+
+	it("returns 500 when formData processing fails", async () => {
+		mocks.auth.mockResolvedValue({ user: { id: "user-1" } });
+
+		const request = {
+			body: {},
+			formData: async () => {
+				throw new Error("FormData parsing error");
+			},
+		} as unknown as Request;
+
+		const response = await POST(request);
+
+		expect(response.status).toBe(500);
+		const body = await response.json();
+		expect(body.error).toBe("Failed to process request");
 	});
 });

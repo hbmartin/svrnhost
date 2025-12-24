@@ -49,6 +49,17 @@ describe("/api/vote GET", () => {
 		expect(response.status).toBe(404);
 	});
 
+	it("returns 403 when chat belongs to another user", async () => {
+		mocks.auth.mockResolvedValue({ user: { id: "user-1" } });
+		mocks.getChatById.mockResolvedValue({ id: "chat-1", userId: "user-2" });
+
+		const response = await GET(
+			new Request("http://localhost/api/vote?chatId=chat-1"),
+		);
+
+		expect(response.status).toBe(403);
+	});
+
 	it("returns votes for authorized user", async () => {
 		mocks.auth.mockResolvedValue({ user: { id: "user-1" } });
 		mocks.getChatById.mockResolvedValue({ id: "chat-1", userId: "user-1" });
@@ -75,6 +86,41 @@ describe("/api/vote PATCH", () => {
 			}),
 		);
 		expect(response.status).toBe(400);
+	});
+
+	it("returns 401 when unauthenticated", async () => {
+		mocks.auth.mockResolvedValue(null);
+
+		const response = await PATCH(
+			new Request("http://localhost/api/vote", {
+				method: "PATCH",
+				body: JSON.stringify({
+					chatId: "chat-1",
+					messageId: "msg-1",
+					type: "up",
+				}),
+			}),
+		);
+
+		expect(response.status).toBe(401);
+	});
+
+	it("returns 404 when chat not found", async () => {
+		mocks.auth.mockResolvedValue({ user: { id: "user-1" } });
+		mocks.getChatById.mockResolvedValue(null);
+
+		const response = await PATCH(
+			new Request("http://localhost/api/vote", {
+				method: "PATCH",
+				body: JSON.stringify({
+					chatId: "chat-1",
+					messageId: "msg-1",
+					type: "up",
+				}),
+			}),
+		);
+
+		expect(response.status).toBe(404);
 	});
 
 	it("returns 403 when chat belongs to another user", async () => {
