@@ -20,10 +20,19 @@ import { formatWhatsAppNumber } from "./utils";
 export type TwilioClient = twilio.Twilio;
 
 const tracer = trace.getTracer("whatsapp-twilio");
-const twilioConfig = getTwilioConfig();
+
+let cachedTwilioConfig: ReturnType<typeof getTwilioConfig> | null = null;
+
+function getLazyTwilioConfig() {
+	if (!cachedTwilioConfig) {
+		cachedTwilioConfig = getTwilioConfig();
+	}
+	return cachedTwilioConfig;
+}
 
 export function createTwilioClient(): TwilioClient {
-	return twilio(twilioConfig.accountSid, twilioConfig.authToken, {
+	const config = getLazyTwilioConfig();
+	return twilio(config.accountSid, config.authToken, {
 		autoRetry: true,
 		maxRetries: WHATSAPP_LIMITS.twilioAutoRetryMaxRetries,
 	});
@@ -34,12 +43,8 @@ export function validateTwilioRequest(
 	url: string,
 	params: Record<string, string>,
 ): boolean {
-	return twilio.validateRequest(
-		twilioConfig.authToken,
-		signature,
-		url,
-		params,
-	);
+	const config = getLazyTwilioConfig();
+	return twilio.validateRequest(config.authToken, signature, url, params);
 }
 
 export interface TwilioErrorMetadata {
@@ -73,7 +78,8 @@ export async function sendTypingIndicator(
 	correlation?: WhatsAppCorrelationIds,
 ): Promise<void> {
 	const conversationSid = payload.ConversationSid;
-	const agentIdentity = twilioConfig.conversationsAgentIdentity;
+	const config = getLazyTwilioConfig();
+	const agentIdentity = config.conversationsAgentIdentity;
 	const resolvedCorrelation: WhatsAppCorrelationIds = {
 		messageSid: correlation?.messageSid ?? payload.MessageSid,
 		waId: correlation?.waId ?? payload.WaId,
@@ -171,9 +177,10 @@ export async function sendWhatsAppMessage({
 	response,
 	correlation,
 }: SendMessageParams): Promise<SendMessageResult> {
-	const messagingServiceSid = twilioConfig.messagingServiceSid;
-	const buttonsContentSid = twilioConfig.whatsappButtonsContentSid;
-	const fromNumber = from ?? twilioConfig.whatsappFrom ?? undefined;
+	const config = getLazyTwilioConfig();
+	const messagingServiceSid = config.messagingServiceSid;
+	const buttonsContentSid = config.whatsappButtonsContentSid;
+	const fromNumber = from ?? config.whatsappFrom ?? undefined;
 	const formattedTo = formatWhatsAppNumber(to);
 	const formattedFrom = fromNumber ? formatWhatsAppNumber(fromNumber) : undefined;
 

@@ -27,8 +27,6 @@ import { incomingMessageSchema } from "./types";
 import { logWhatsAppEvent } from "./observability";
 import { getTwilioConfig } from "@/lib/config/server";
 
-const twilioConfig = getTwilioConfig();
-
 export async function POST(request: Request) {
 	const rawBody = await request.text();
 	if (!rawBody) {
@@ -81,7 +79,23 @@ export async function POST(request: Request) {
 
 	const payload = parsedPayload.data;
 	const signature = request.headers.get("x-twilio-signature");
-	const webhookUrl = twilioConfig.whatsappWebhookUrl;
+
+	let webhookUrl: string;
+	try {
+		const twilioConfig = getTwilioConfig();
+		webhookUrl = twilioConfig.whatsappWebhookUrl;
+	} catch (configError) {
+		const errorMessage =
+			configError instanceof Error ? configError.message : String(configError);
+		logWhatsAppEvent("error", {
+			event: "whatsapp.inbound.config_error",
+			direction: "inbound",
+			messageSid: payload.MessageSid,
+			waId: payload.WaId,
+			error: errorMessage,
+		});
+		return new Response("Server misconfigured", { status: 500 });
+	}
 
 	if (!signature) {
 		logWhatsAppEvent("warn", {

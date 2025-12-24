@@ -53,18 +53,17 @@ export function formatWhatsAppNumber(value: string) {
 		);
 	}
 
-	const formattedValue = hasWhatsAppPrefix(trimmedValue)
-		? `${WHATSAPP_PREFIX}${trimmedValue.slice(WHATSAPP_PREFIX.length)}`
-		: `${WHATSAPP_PREFIX}${trimmedValue}`;
-	const normalizedValue = formattedValue.slice(WHATSAPP_PREFIX.length);
+	const numberPart = hasWhatsAppPrefix(trimmedValue)
+		? trimmedValue.slice(WHATSAPP_PREFIX.length)
+		: trimmedValue;
 
-	if (!E164_REGEX.test(normalizedValue)) {
+	if (!E164_REGEX.test(numberPart)) {
 		throw new Error(
-			`Invalid WhatsApp number: "${normalizedValue}" is not in E.164 format.`,
+			`Invalid WhatsApp number: "${numberPart}" is not in E.164 format.`,
 		);
 	}
 
-	return formattedValue;
+	return `${WHATSAPP_PREFIX}${numberPart}`;
 }
 
 export function extractAttachments(payload: IncomingMessage): Attachment[] {
