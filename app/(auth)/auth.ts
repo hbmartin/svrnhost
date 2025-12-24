@@ -40,11 +40,20 @@ export const {
 	...authConfig,
 	providers: [
 		Credentials({
-			credentials: {},
-			async authorize({ email, password }: any) {
+			credentials: {
+				email: { label: "Email", type: "email" },
+				password: { label: "Password", type: "password" },
+			},
+			async authorize(credentials) {
+				const email = credentials?.email;
+				const password = credentials?.password;
+				if (typeof email !== "string" || typeof password !== "string") {
+					return null;
+				}
+
 				const users = await getUser(email);
 
-				const user = users[0];
+				const user = users.at(0);
 
 				if (!user) {
 					await compare(password, DUMMY_PASSWORD);

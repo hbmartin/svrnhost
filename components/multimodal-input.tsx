@@ -21,7 +21,6 @@ import { saveChatModelAsCookie } from "@/app/(chat)/actions";
 import { SelectItem } from "@/components/ui/select";
 import { chatModels } from "@/lib/ai/models";
 import type { Attachment, ChatMessage } from "@/lib/types";
-import type { AppUsage } from "@/lib/usage";
 import { cn } from "@/lib/utils";
 import {
 	PromptInput,
@@ -57,7 +56,6 @@ function PureMultimodalInput({
 	className,
 	selectedModelId,
 	onModelChange,
-	usage: _usage,
 }: {
 	chatId: string;
 	input: string;
@@ -72,7 +70,6 @@ function PureMultimodalInput({
 	className?: string | undefined;
 	selectedModelId: string;
 	onModelChange?: ((modelId: string) => void) | undefined;
-	usage?: AppUsage | undefined;
 }) {
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 	const { width } = useWindowSize();

@@ -5,12 +5,7 @@ import { afterEach, vi } from "vitest";
 // Set dummy POSTGRES_URL for tests that import database modules
 process.env.POSTGRES_URL = "postgres://test:test@localhost:5432/test";
 
-Object.defineProperty(process.env, "NODE_ENV", {
-	value: "test",
-	configurable: true,
-	writable: true,
-	enumerable: true,
-});
+process.env.NODE_ENV = "test";
 
 class ResizeObserverStub {
 	observe() {}

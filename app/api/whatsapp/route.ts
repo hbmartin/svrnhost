@@ -40,7 +40,9 @@ export async function POST(request: Request) {
 
 	const rawParams = Object.fromEntries(new URLSearchParams(rawBody));
 	const rawMessageSid =
-		typeof rawParams["MessageSid"] === "string" ? rawParams["MessageSid"] : undefined;
+		typeof rawParams["MessageSid"] === "string"
+			? rawParams["MessageSid"]
+			: undefined;
 	const rawWaId =
 		typeof rawParams["WaId"] === "string" ? rawParams["WaId"] : undefined;
 
