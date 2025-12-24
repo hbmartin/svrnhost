@@ -31,6 +31,13 @@ export function getAttemptsFromError(error: unknown): number | undefined {
 
 export function normalizeWhatsAppNumber(value: string) {
 	const trimmedValue = value.trim();
+
+	if (trimmedValue.length === 0) {
+		throw new TypeError(
+			`Invalid WhatsApp number: "${value}" is empty or whitespace.`,
+		);
+	}
+
 	const normalizedValue = hasWhatsAppPrefix(trimmedValue)
 		? trimmedValue.slice(WHATSAPP_PREFIX.length)
 		: trimmedValue;
