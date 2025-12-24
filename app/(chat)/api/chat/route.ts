@@ -21,6 +21,7 @@ import { entitlementsByUserType } from "@/lib/ai/entitlements";
 import type { ChatModel } from "@/lib/ai/models";
 import { type RequestHints, systemPrompt } from "@/lib/ai/prompts";
 import { myProvider } from "@/lib/ai/providers";
+import { getAiConfig } from "@/lib/config/server";
 import { getWeather } from "@/lib/ai/tools/get-weather";
 import { listUpcomingEvents } from "@/lib/ai/tools/list-upcoming-events";
 import { isProductionEnvironment } from "@/lib/constants";
@@ -235,11 +236,12 @@ export async function POST(request: Request) {
 
 		const stream = createUIMessageStream({
 			execute: async ({ writer: dataStream }) => {
+				const aiConfig = getAiConfig();
 				logChatEvent("starting_stream_text", {
 					uiMessageCount: uiMessages.length,
 					selectedChatModel,
-					hasOpenAiKey: Boolean(process.env.OPENAI_API_KEY),
-					hasAnthropicKey: Boolean(process.env.ANTHROPIC_API_KEY),
+					hasOpenAiKey: aiConfig.hasOpenAiKey,
+					hasAnthropicKey: aiConfig.hasAnthropicKey,
 				});
 
 				const result = streamText({

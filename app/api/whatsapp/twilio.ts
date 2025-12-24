@@ -1,6 +1,8 @@
 import { SpanStatusCode, trace } from "@opentelemetry/api";
 import twilio, { RestException } from "twilio";
 import type { MessageListInstanceCreateOptions } from "twilio/lib/rest/api/v2010/account/message";
+import { WHATSAPP_LIMITS } from "@/lib/config/limits";
+import { getTwilioConfig } from "@/lib/config/server";
 import { whatsappRateLimiter } from "@/lib/rate-limiter";
 import {
 	isNetworkError,
@@ -19,17 +21,20 @@ export type TwilioClient = twilio.Twilio;
 
 const tracer = trace.getTracer("whatsapp-twilio");
 
-export function createTwilioClient(): TwilioClient {
-	const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
-	const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
+let cachedTwilioConfig: ReturnType<typeof getTwilioConfig> | null = null;
 
-	if (!twilioAccountSid || !twilioAuthToken) {
-		throw new Error("Twilio credentials are not configured");
+function getLazyTwilioConfig() {
+	if (!cachedTwilioConfig) {
+		cachedTwilioConfig = getTwilioConfig();
 	}
+	return cachedTwilioConfig;
+}
 
-	return twilio(twilioAccountSid, twilioAuthToken, {
+export function createTwilioClient(): TwilioClient {
+	const config = getLazyTwilioConfig();
+	return twilio(config.accountSid, config.authToken, {
 		autoRetry: true,
-		maxRetries: 3,
+		maxRetries: WHATSAPP_LIMITS.twilioAutoRetryMaxRetries,
 	});
 }
 
@@ -38,11 +43,8 @@ export function validateTwilioRequest(
 	url: string,
 	params: Record<string, string>,
 ): boolean {
-	const authToken = process.env.TWILIO_AUTH_TOKEN;
-	if (!authToken) {
-		return false;
-	}
-	return twilio.validateRequest(authToken, signature, url, params);
+	const config = getLazyTwilioConfig();
+	return twilio.validateRequest(config.authToken, signature, url, params);
 }
 
 export interface TwilioErrorMetadata {
@@ -76,7 +78,8 @@ export async function sendTypingIndicator(
 	correlation?: WhatsAppCorrelationIds,
 ): Promise<void> {
 	const conversationSid = payload.ConversationSid;
-	const agentIdentity = process.env.TWILIO_CONVERSATIONS_AGENT_IDENTITY;
+	const config = getLazyTwilioConfig();
+	const agentIdentity = config.conversationsAgentIdentity;
 	const resolvedCorrelation: WhatsAppCorrelationIds = {
 		messageSid: correlation?.messageSid ?? payload.MessageSid,
 		waId: correlation?.waId ?? payload.WaId,
@@ -174,9 +177,10 @@ export async function sendWhatsAppMessage({
 	response,
 	correlation,
 }: SendMessageParams): Promise<SendMessageResult> {
-	const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID;
-	const buttonsContentSid = process.env.TWILIO_WHATSAPP_BUTTONS_CONTENT_SID;
-	const fromNumber = from ?? process.env.TWILIO_WHATSAPP_FROM;
+	const config = getLazyTwilioConfig();
+	const messagingServiceSid = config.messagingServiceSid;
+	const buttonsContentSid = config.whatsappButtonsContentSid;
+	const fromNumber = from ?? config.whatsappFrom ?? undefined;
 	const formattedTo = formatWhatsAppNumber(to);
 	const formattedFrom = fromNumber ? formatWhatsAppNumber(fromNumber) : undefined;
 
@@ -327,7 +331,10 @@ export async function sendWhatsAppMessageWithRetry(
 	// Acquire sender-level rate limit token (waits up to 5 seconds)
 	// Twilio's 80 MPS quota is per WhatsApp sender, not per recipient
 	try {
-		await whatsappRateLimiter.acquire(WHATSAPP_SENDER_RATE_LIMIT_KEY);
+		await whatsappRateLimiter.acquire(
+			WHATSAPP_SENDER_RATE_LIMIT_KEY,
+			WHATSAPP_LIMITS.senderRateLimitMaxWaitMs,
+		);
 	} catch (rateLimitError) {
 		logWhatsAppEvent("error", {
 			event: "whatsapp.outbound.rate_limit_failed",
@@ -346,9 +353,9 @@ export async function sendWhatsAppMessageWithRetry(
 	const { result, attempts } = await withRetry(
 		() => sendWhatsAppMessage(params),
 		{
-			maxAttempts: 3,
-			baseDelayMs: 1000,
-			maxDelayMs: 30000,
+			maxAttempts: WHATSAPP_LIMITS.retry.maxAttempts,
+			baseDelayMs: WHATSAPP_LIMITS.retry.baseDelayMs,
+			maxDelayMs: WHATSAPP_LIMITS.retry.maxDelayMs,
 			context: "twilio-send",
 			shouldRetry: (error) => isTwilioErrorRetryable(error),
 		},

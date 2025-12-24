@@ -31,6 +31,7 @@ import {
 	getTwilioErrorMetadata,
 	type TwilioClient,
 } from "./twilio";
+import { getTwilioConfig } from "@/lib/config/server";
 import {
 	type IncomingMessage,
 	type WhatsAppAIResponse,
@@ -39,6 +40,7 @@ import {
 import {
 	buildSystemPrompt,
 	extractAttachments,
+	getAttemptsFromError,
 	normalizeWhatsAppNumber,
 } from "./utils";
 import {
@@ -139,9 +141,9 @@ async function handleWhatsAppMessage({
 	});
 
 	const client = createTwilioClient();
-	const whatsappFrom = process.env.TWILIO_WHATSAPP_FROM;
+	const { whatsappFrom, messagingServiceSid } = getTwilioConfig();
 
-	if (!whatsappFrom && !process.env.TWILIO_MESSAGING_SERVICE_SID) {
+	if (!whatsappFrom && !messagingServiceSid) {
 		throw new Error(
 			"TWILIO_WHATSAPP_FROM or TWILIO_MESSAGING_SERVICE_SID is required",
 		);
@@ -291,10 +293,7 @@ async function trySendWhatsAppMessageWithRetry(params: {
 		const errorMessage =
 			error instanceof Error ? error.message : String(error);
 		const twilioMetadata = getTwilioErrorMetadata(error);
-		const attempts =
-			error && typeof error === "object"
-				? (error as { attempts?: number }).attempts
-				: undefined;
+		const attempts = getAttemptsFromError(error);
 		const errorDetails = {
 			attempts,
 			twilioStatus: twilioMetadata?.status,

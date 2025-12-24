@@ -122,6 +122,11 @@ Required environment variables:
 | `TWILIO_AUTH_TOKEN` | Twilio auth token for webhook signature validation |
 | `TWILIO_WHATSAPP_WEBHOOK_URL` | Public URL for the WhatsApp webhook (e.g., `https://your-domain.com/api/whatsapp`) |
 
+LLM provider configuration (required for AI responses):
+
+- Set `AI_GATEWAY_API_KEY` (recommended on Vercel), or
+- Set both `OPENAI_API_KEY` and `ANTHROPIC_API_KEY`.
+
 Choose ONE sender method:
 
 | Variable | Description |
@@ -137,6 +142,7 @@ Optional configuration:
 | `BLOB_READ_WRITE_TOKEN` | Vercel Blob storage token |
 | `TWILIO_CONVERSATIONS_AGENT_IDENTITY` | Agent identity for typing indicators |
 | `TWILIO_WHATSAPP_BUTTONS_CONTENT_SID` | Content template SID for quick reply buttons |
+| `SKIP_ENV_VALIDATION` | Set to `true` to bypass server env validation (tests only) |
 
 ### 3. Database Setup
 
