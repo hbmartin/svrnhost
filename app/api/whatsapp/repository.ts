@@ -23,9 +23,9 @@ export interface CreateInboundMessageParams {
 	body: string;
 	attachments: Attachment[];
 	messageSid: string;
-	profileName?: string;
-	waId?: string;
-	numMedia?: number;
+	profileName?: string | undefined;
+	waId?: string | undefined;
+	numMedia?: number | undefined;
 	requestUrl: string;
 }
 

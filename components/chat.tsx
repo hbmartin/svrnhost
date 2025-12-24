@@ -4,8 +4,7 @@ import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import useSWR, { useSWRConfig } from "swr";
-import { unstable_serialize } from "swr/infinite";
+import useSWR from "swr";
 import { ChatHeader } from "@/components/chat-header";
 import {
 	AlertDialog,
@@ -44,8 +43,6 @@ export function Chat({
 	initialLastContext?: AppUsage;
 }) {
 	const router = useRouter();
-
-	const { mutate } = useSWRConfig();
 
 	// Handle browser back/forward navigation
 	useEffect(() => {

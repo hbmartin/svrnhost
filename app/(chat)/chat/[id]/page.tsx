@@ -54,9 +54,9 @@ async function ChatPage({ params }: { params: Promise<{ id: string }> }) {
 			autoResume={true}
 			id={chat.id}
 			initialChatModel={chatModelFromCookie?.value ?? DEFAULT_CHAT_MODEL}
-			initialLastContext={chat.lastContext ?? undefined}
 			initialMessages={uiMessages}
 			isReadonly={session?.user?.id !== chat.userId}
+			{...(chat.lastContext ? { initialLastContext: chat.lastContext } : {})}
 		/>
 	);
 }

@@ -278,7 +278,7 @@ async function trySendTypingIndicator(
 async function trySendWhatsAppMessageWithRetry(params: {
 	client: TwilioClient;
 	to: string;
-	from?: string;
+	from?: string | undefined;
 	response: WhatsAppAIResponse;
 	correlation: WhatsAppCorrelationIds;
 }): Promise<{ sid: string; status: string } | null> {

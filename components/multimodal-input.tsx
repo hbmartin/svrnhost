@@ -57,7 +57,7 @@ function PureMultimodalInput({
 	className,
 	selectedModelId,
 	onModelChange,
-	usage,
+	usage: _usage,
 }: {
 	chatId: string;
 	input: string;
@@ -69,10 +69,10 @@ function PureMultimodalInput({
 	messages: UIMessage[];
 	setMessages: UseChatHelpers<ChatMessage>["setMessages"];
 	sendMessage: UseChatHelpers<ChatMessage>["sendMessage"];
-	className?: string;
+	className?: string | undefined;
 	selectedModelId: string;
-	onModelChange?: (modelId: string) => void;
-	usage?: AppUsage;
+	onModelChange?: ((modelId: string) => void) | undefined;
+	usage?: AppUsage | undefined;
 }) {
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 	const { width } = useWindowSize();
@@ -184,8 +184,10 @@ function PureMultimodalInput({
 			}
 			const { error } = await response.json();
 			toast.error(error);
+			return undefined;
 		} catch (_error) {
 			toast.error("Failed to upload file, please try again!");
+			return undefined;
 		}
 	}, []);
 
@@ -435,7 +437,7 @@ function PureModelSelectorCompact({
 	onModelChange,
 }: {
 	selectedModelId: string;
-	onModelChange?: (modelId: string) => void;
+	onModelChange?: ((modelId: string) => void) | undefined;
 }) {
 	const [optimisticModelId, setOptimisticModelId] = useState(selectedModelId);
 
@@ -459,7 +461,7 @@ function PureModelSelectorCompact({
 					});
 				}
 			}}
-			value={selectedModel?.name}
+			{...(selectedModel ? { value: selectedModel.name } : {})}
 		>
 			<Trigger asChild>
 				<Button className="h-8 px-2" variant="ghost">

@@ -10,6 +10,8 @@ const envSchema = z
 		VERCEL_ENV: z.string().optional(),
 		SKIP_ENV_VALIDATION: z.string().optional(),
 
+		POSTGRES_URL: z.string().min(1).optional(),
+
 		TWILIO_ACCOUNT_SID: z.string().min(1).optional(),
 		TWILIO_AUTH_TOKEN: z.string().min(1).optional(),
 		TWILIO_WHATSAPP_WEBHOOK_URL: z.string().trim().url().optional(),
@@ -41,6 +43,7 @@ if (!parsedEnv.success) {
 
 const env = parsedEnv.data;
 const nodeEnv = env.NODE_ENV;
+export const vercelEnv = env.VERCEL_ENV;
 const isTestLike = isTestEnvironment || nodeEnv === "test";
 const shouldEnforce = env.SKIP_ENV_VALIDATION !== "true" && !isTestLike;
 
@@ -144,6 +147,26 @@ export function getAiConfig(): AiConfig {
 	};
 
 	return cachedAiConfig;
+}
+
+let cachedPostgresUrl: string | null = null;
+
+export function getPostgresUrl(): string {
+	if (cachedPostgresUrl) {
+		return cachedPostgresUrl;
+	}
+
+	const postgresUrl = env.POSTGRES_URL;
+
+	if (!postgresUrl) {
+		throw new Error(
+			"Missing required database configuration: POSTGRES_URL. " +
+				"Set this environment variable or check your setup.",
+		);
+	}
+
+	cachedPostgresUrl = postgresUrl;
+	return cachedPostgresUrl;
 }
 
 export const limits = {

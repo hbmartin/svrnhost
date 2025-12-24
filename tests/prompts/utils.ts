@@ -25,6 +25,10 @@ export function compareMessages(
 		const item1 = firstMessage.content[i];
 		const item2 = secondMessage.content[i];
 
+		if (!item1 || !item2) {
+			return false;
+		}
+
 		if (item1.type !== item2.type) {
 			return false;
 		}

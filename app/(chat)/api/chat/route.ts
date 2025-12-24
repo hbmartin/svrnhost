@@ -23,7 +23,7 @@ import { type RequestHints, systemPrompt } from "@/lib/ai/prompts";
 import { myProvider } from "@/lib/ai/providers";
 import { getWeather } from "@/lib/ai/tools/get-weather";
 import { listUpcomingEvents } from "@/lib/ai/tools/list-upcoming-events";
-import { getAiConfig } from "@/lib/config/server";
+import { getAiConfig, vercelEnv } from "@/lib/config/server";
 import { isProductionEnvironment } from "@/lib/constants";
 import {
 	createStreamId,
@@ -96,7 +96,7 @@ export async function POST(request: Request) {
 				sessionUserId,
 				streamId,
 				nodeEnv: process.env.NODE_ENV,
-				vercelEnv: process.env.VERCEL_ENV,
+				vercelEnv,
 				...props,
 			});
 		} catch {
@@ -282,7 +282,8 @@ export async function POST(request: Request) {
 								return;
 							}
 
-							const summary = getUsage({ modelId, usage, providers });
+							// eslint-disable-next-line @typescript-eslint/no-explicit-any
+							const summary = getUsage({ modelId, usage: usage as any, providers });
 							finalMergedUsage = { ...usage, ...summary, modelId } as AppUsage;
 							dataStream.write({ type: "data-usage", data: finalMergedUsage });
 						} catch (err) {

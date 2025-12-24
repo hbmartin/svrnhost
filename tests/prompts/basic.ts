@@ -1,6 +1,6 @@
 import type { ModelMessage } from "ai";
 
-export const TEST_PROMPTS: Record<string, ModelMessage> = {
+export const TEST_PROMPTS = {
 	USER_SKY: {
 		role: "user",
 		content: [{ type: "text", text: "Why is the sky blue?" }],
@@ -145,4 +145,4 @@ export const TEST_PROMPTS: Record<string, ModelMessage> = {
 			},
 		],
 	},
-};
+} satisfies Record<string, ModelMessage>;

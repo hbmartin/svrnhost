@@ -2,7 +2,7 @@ import { cleanup } from "@testing-library/react";
 import React from "react";
 import { afterEach, vi } from "vitest";
 
-process.env.NODE_ENV = "test";
+Object.defineProperty(process.env, "NODE_ENV", { value: "test" });
 
 class ResizeObserverStub {
 	observe() {}
