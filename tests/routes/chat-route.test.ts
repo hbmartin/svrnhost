@@ -155,6 +155,14 @@ describe("/api/chat POST", () => {
 });
 
 describe("/api/chat DELETE", () => {
+	it("returns 400 when id is missing", async () => {
+		const response = await DELETE(new Request("http://localhost/api/chat"));
+
+		expect(response.status).toBe(400);
+		const body = await response.json();
+		expect(body.code).toBe("bad_request:api");
+	});
+
 	it("returns 401 when unauthenticated", async () => {
 		mocks.auth.mockResolvedValue(null);
 

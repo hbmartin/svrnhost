@@ -2,9 +2,15 @@ import { compare } from "bcrypt-ts";
 import NextAuth, { type DefaultSession } from "next-auth";
 import type { DefaultJWT } from "next-auth/jwt";
 import Credentials from "next-auth/providers/credentials";
+import { z } from "zod";
 import { DUMMY_PASSWORD } from "@/lib/constants";
 import { getUser } from "@/lib/db/queries";
 import { authConfig } from "./auth.config";
+
+export const LoginSchema = z.object({
+	email: z.string().trim().toLowerCase(),
+	password: z.string().min(1),
+});
 
 export type UserType = "regular";
 
@@ -45,11 +51,12 @@ export const {
 				password: { label: "Password", type: "password" },
 			},
 			async authorize(credentials) {
-				const email = credentials?.email;
-				const password = credentials?.password;
-				if (typeof email !== "string" || typeof password !== "string") {
+				const parsed = LoginSchema.safeParse(credentials);
+				if (!parsed.success) {
 					return null;
 				}
+
+				const { email, password } = parsed.data;
 
 				const users = await getUser(email);
 

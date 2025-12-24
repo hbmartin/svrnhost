@@ -33,7 +33,6 @@ export function Chat({
 	initialChatModel,
 	isReadonly,
 	autoResume,
-	initialLastContext,
 }: {
 	id: string;
 	initialMessages: ChatMessage[];
@@ -57,7 +56,6 @@ export function Chat({
 	const { setDataStream } = useDataStream();
 
 	const [input, setInput] = useState<string>("");
-	const [usage, setUsage] = useState<AppUsage | undefined>(initialLastContext);
 	const [showCreditCardAlert, setShowCreditCardAlert] = useState(false);
 	const [currentModelId, setCurrentModelId] = useState(initialChatModel);
 	const currentModelIdRef = useRef(currentModelId);
@@ -96,9 +94,6 @@ export function Chat({
 		}),
 		onData: (dataPart) => {
 			setDataStream((ds) => (ds ? [...ds, dataPart] : []));
-			if (dataPart.type === "data-usage") {
-				setUsage(dataPart.data);
-			}
 		},
 		// onFinish: () => {
 		//   mutate(unstable_serialize(getChatHistoryPaginationKey));
@@ -182,7 +177,6 @@ export function Chat({
 							setMessages={setMessages}
 							status={status}
 							stop={stop}
-							usage={usage}
 						/>
 					)}
 				</div>

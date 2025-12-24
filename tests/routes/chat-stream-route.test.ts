@@ -135,4 +135,106 @@ describe("/api/chat/[id]/stream GET", () => {
 
 		expect(response.status).toBe(200);
 	});
+
+	it("returns 404 when getChatById throws", async () => {
+		mocks.getStreamContext.mockReturnValue({
+			resumableStream: vi.fn(),
+		});
+		mocks.auth.mockResolvedValue({ user: { id: "user-1" } });
+		mocks.getChatById.mockRejectedValue(new Error("Database error"));
+
+		const response = await GET(new Request("http://localhost"), {
+			params: Promise.resolve({ id: "chat-1" }),
+		});
+
+		expect(response.status).toBe(404);
+		const body = await response.json();
+		expect(body.code).toBe("not_found:chat");
+	});
+
+	it("returns 200 with empty stream when resumableStream returns null and no messages exist", async () => {
+		const resumableStream = vi.fn().mockResolvedValue(null);
+		mocks.getStreamContext.mockReturnValue({ resumableStream });
+		mocks.auth.mockResolvedValue({ user: { id: "user-1" } });
+		mocks.getChatById.mockResolvedValue({
+			id: "chat-1",
+			userId: "user-1",
+			visibility: "private",
+		});
+		mocks.getStreamIdsByChatId.mockResolvedValue(["stream-1"]);
+		mocks.getMessagesByChatId.mockResolvedValue([]);
+
+		const response = await GET(new Request("http://localhost"), {
+			params: Promise.resolve({ id: "chat-1" }),
+		});
+
+		expect(response.status).toBe(200);
+	});
+
+	it("returns 200 with empty stream when resumableStream returns null and last message is user", async () => {
+		const resumableStream = vi.fn().mockResolvedValue(null);
+		mocks.getStreamContext.mockReturnValue({ resumableStream });
+		mocks.auth.mockResolvedValue({ user: { id: "user-1" } });
+		mocks.getChatById.mockResolvedValue({
+			id: "chat-1",
+			userId: "user-1",
+			visibility: "private",
+		});
+		mocks.getStreamIdsByChatId.mockResolvedValue(["stream-1"]);
+		mocks.getMessagesByChatId.mockResolvedValue([
+			{ id: "msg-1", role: "user", createdAt: new Date() },
+		]);
+
+		const response = await GET(new Request("http://localhost"), {
+			params: Promise.resolve({ id: "chat-1" }),
+		});
+
+		expect(response.status).toBe(200);
+	});
+
+	it("returns 200 with empty stream when resumableStream returns null and assistant message is old", async () => {
+		const resumableStream = vi.fn().mockResolvedValue(null);
+		mocks.getStreamContext.mockReturnValue({ resumableStream });
+		mocks.auth.mockResolvedValue({ user: { id: "user-1" } });
+		mocks.getChatById.mockResolvedValue({
+			id: "chat-1",
+			userId: "user-1",
+			visibility: "private",
+		});
+		mocks.getStreamIdsByChatId.mockResolvedValue(["stream-1"]);
+		// Message is more than 15 seconds old
+		const oldDate = new Date(Date.now() - 60000);
+		mocks.getMessagesByChatId.mockResolvedValue([
+			{ id: "msg-1", role: "assistant", createdAt: oldDate },
+		]);
+
+		const response = await GET(new Request("http://localhost"), {
+			params: Promise.resolve({ id: "chat-1" }),
+		});
+
+		expect(response.status).toBe(200);
+	});
+
+	it("returns 200 with restored stream when resumableStream returns null and assistant message is recent", async () => {
+		const resumableStream = vi.fn().mockResolvedValue(null);
+		mocks.getStreamContext.mockReturnValue({ resumableStream });
+		mocks.auth.mockResolvedValue({ user: { id: "user-1" } });
+		mocks.getChatById.mockResolvedValue({
+			id: "chat-1",
+			userId: "user-1",
+			visibility: "private",
+		});
+		mocks.getStreamIdsByChatId.mockResolvedValue(["stream-1"]);
+		// Message is within 15 seconds
+		const recentDate = new Date();
+		mocks.getMessagesByChatId.mockResolvedValue([
+			{ id: "msg-1", role: "assistant", createdAt: recentDate, parts: [] },
+		]);
+
+		const response = await GET(new Request("http://localhost"), {
+			params: Promise.resolve({ id: "chat-1" }),
+		});
+
+		expect(response.status).toBe(200);
+	});
 });
