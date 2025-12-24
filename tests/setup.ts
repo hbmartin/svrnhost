@@ -2,7 +2,15 @@ import { cleanup } from "@testing-library/react";
 import React from "react";
 import { afterEach, vi } from "vitest";
 
-process.env.NODE_ENV = "test";
+// Set dummy POSTGRES_URL for tests that import database modules
+process.env.POSTGRES_URL = "postgres://test:test@localhost:5432/test";
+
+Object.defineProperty(process.env, "NODE_ENV", {
+	value: "test",
+	configurable: true,
+	writable: true,
+	enumerable: true,
+});
 
 class ResizeObserverStub {
 	observe() {}

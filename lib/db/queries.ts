@@ -14,6 +14,7 @@ import {
 } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
+import { getPostgresUrl } from "../config/server";
 import { ChatSDKError } from "../errors";
 import type { AppUsage } from "../usage";
 import {
@@ -36,8 +37,7 @@ import { generateHashedPassword } from "./utils";
 // use the Drizzle adapter for Auth.js / NextAuth
 // https://authjs.dev/reference/adapter/drizzle
 
-// biome-ignore lint: Forbidden non-null assertion.
-const client = postgres(process.env.POSTGRES_URL!);
+const client = postgres(getPostgresUrl());
 const db = drizzle(client);
 
 export async function getUser(email: string): Promise<User[]> {
@@ -445,6 +445,7 @@ export async function deleteMessagesByChatIdAfterTimestamp({
 					and(eq(message.chatId, chatId), inArray(message.id, messageIds)),
 				);
 		}
+		return undefined;
 	} catch (_error) {
 		throw new ChatSDKError(
 			"bad_request:database",
@@ -624,13 +625,13 @@ export async function createPendingWebhookLog(entry: {
 export async function upsertWebhookLogByMessageSid(entry: {
 	source: string;
 	messageSid: string;
-	direction?: string | null;
-	status?: string | null;
-	requestUrl?: string | null;
-	fromNumber?: string | null;
-	toNumber?: string | null;
-	payload?: Record<string, unknown> | null;
-	error?: string | null;
+	direction?: string | null | undefined;
+	status?: string | null | undefined;
+	requestUrl?: string | null | undefined;
+	fromNumber?: string | null | undefined;
+	toNumber?: string | null | undefined;
+	payload?: Record<string, unknown> | null | undefined;
+	error?: string | null | undefined;
 }) {
 	const updates: Partial<typeof webhookLog.$inferInsert> = {};
 
@@ -717,14 +718,14 @@ export async function getLatestChatForUser({ userId }: { userId: string }) {
 
 export async function saveWebhookLog(entry: {
 	source: string;
-	direction?: string | null;
-	status?: string | null;
-	requestUrl?: string | null;
-	messageSid?: string | null;
-	fromNumber?: string | null;
-	toNumber?: string | null;
-	payload?: Record<string, unknown> | null;
-	error?: string | null;
+	direction?: string | null | undefined;
+	status?: string | null | undefined;
+	requestUrl?: string | null | undefined;
+	messageSid?: string | null | undefined;
+	fromNumber?: string | null | undefined;
+	toNumber?: string | null | undefined;
+	payload?: Record<string, unknown> | null | undefined;
+	error?: string | null | undefined;
 }) {
 	try {
 		await db.insert(webhookLog).values({
@@ -784,9 +785,9 @@ export async function getFailedOutboundMessages({
 			.filter((msg) => {
 				const meta = msg.metadata as Record<string, unknown> | null;
 				return (
-					meta?.source === source &&
-					meta?.direction === "outbound" &&
-					meta?.sendStatus === "failed"
+					meta?.["source"] === source &&
+					meta?.["direction"] === "outbound" &&
+					meta?.["sendStatus"] === "failed"
 				);
 			})
 			.slice(0, limit);

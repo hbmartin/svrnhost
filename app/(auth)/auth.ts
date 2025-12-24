@@ -44,12 +44,12 @@ export const {
 			async authorize({ email, password }: any) {
 				const users = await getUser(email);
 
-				if (users.length === 0) {
+				const user = users[0];
+
+				if (!user) {
 					await compare(password, DUMMY_PASSWORD);
 					return null;
 				}
-
-				const [user] = users;
 
 				if (!user.password) {
 					await compare(password, DUMMY_PASSWORD);

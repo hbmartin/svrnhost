@@ -44,10 +44,10 @@ export function validateTwilioRequest(
 }
 
 export interface TwilioErrorMetadata {
-	status?: number;
-	code?: number;
-	moreInfo?: string;
-	details?: Record<string, unknown>;
+	status?: number | undefined;
+	code?: number | undefined;
+	moreInfo?: string | undefined;
+	details?: Record<string, unknown> | undefined;
 }
 
 export function getTwilioErrorMetadata(
@@ -156,9 +156,9 @@ export async function sendTypingIndicator(
 export interface SendMessageParams {
 	client: TwilioClient;
 	to: string;
-	from?: string;
+	from?: string | undefined;
 	response: WhatsAppAIResponse;
-	correlation?: WhatsAppCorrelationIds;
+	correlation?: WhatsAppCorrelationIds | undefined;
 }
 
 export interface SendMessageResult {

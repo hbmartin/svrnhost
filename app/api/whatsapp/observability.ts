@@ -1,23 +1,24 @@
 import type { Span } from "@opentelemetry/api";
+import { vercelEnv } from "@/lib/config/server";
 
 export type WhatsAppLogLevel = "info" | "warn" | "error";
 export type WhatsAppDirection = "inbound" | "outbound" | "internal";
 
 export interface WhatsAppCorrelationIds {
-	messageSid?: string;
-	waId?: string;
-	chatId?: string;
+	messageSid?: string | undefined;
+	waId?: string | undefined;
+	chatId?: string | undefined;
 }
 
 export interface WhatsAppLogFields extends WhatsAppCorrelationIds {
 	event: string;
-	direction?: WhatsAppDirection;
-	status?: string;
-	requestUrl?: string;
-	fromNumber?: string;
-	toNumber?: string;
-	error?: string;
-	details?: Record<string, unknown>;
+	direction?: WhatsAppDirection | undefined;
+	status?: string | undefined;
+	requestUrl?: string | undefined;
+	fromNumber?: string | undefined;
+	toNumber?: string | undefined;
+	error?: string | undefined;
+	details?: Record<string, unknown> | undefined;
 }
 
 export function logWhatsAppEvent(
@@ -35,7 +36,7 @@ export function logWhatsAppEvent(
 		logger("[whatsapp]", {
 			service: "whatsapp",
 			nodeEnv: process.env.NODE_ENV,
-			vercelEnv: process.env.VERCEL_ENV,
+			vercelEnv,
 			...fields,
 		});
 	} catch (loggingError) {

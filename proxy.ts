@@ -27,10 +27,11 @@ export async function proxy(request: NextRequest) {
 		return NextResponse.next();
 	}
 
+	const authSecret = process.env["AUTH_SECRET"];
 	const token = await getToken({
 		req: request,
-		secret: process.env.AUTH_SECRET,
 		secureCookie: !isDevelopmentEnvironment,
+		...(authSecret ? { secret: authSecret } : {}),
 	});
 
 	if (!token) {
