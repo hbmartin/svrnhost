@@ -9,7 +9,8 @@
       "Bash(grep:*)",
       "Bash(pnpm test:*)",
       "Bash(tree:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(find:*)"
     ]
   }
 }
