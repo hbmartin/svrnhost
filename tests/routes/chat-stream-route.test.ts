@@ -182,7 +182,7 @@ describe("/api/chat/[id]/stream GET", () => {
 		});
 		mocks.getStreamIdsByChatId.mockResolvedValue(["stream-1"]);
 		mocks.getMessagesByChatId.mockResolvedValue([
-			{ id: "msg-1", role: "user", createdAt: new Date() },
+			{ id: "msg-1", role: "user", createdAt: new Date(), parts: [] },
 		]);
 
 		const response = await GET(new Request("http://localhost"), {
@@ -205,7 +205,7 @@ describe("/api/chat/[id]/stream GET", () => {
 		// Message is more than 15 seconds old
 		const oldDate = new Date(Date.now() - 60000);
 		mocks.getMessagesByChatId.mockResolvedValue([
-			{ id: "msg-1", role: "assistant", createdAt: oldDate },
+			{ id: "msg-1", role: "assistant", createdAt: oldDate, parts: [] },
 		]);
 
 		const response = await GET(new Request("http://localhost"), {

@@ -4,6 +4,7 @@ import {
 	generateTitleFromUserMessage,
 	saveChatModelAsCookie,
 } from "@/app/(chat)/actions";
+import { myProvider } from "@/lib/ai/providers";
 
 const mocks = vi.hoisted(() => ({
 	cookiesSet: vi.fn(),
@@ -66,6 +67,7 @@ describe("generateTitleFromUserMessage", () => {
 		expect(result).toBe("Generated Title");
 		expect(mocks.generateText).toHaveBeenCalledWith(
 			expect.objectContaining({
+				model: myProvider.languageModel("title-model"),
 				prompt: "Hello world",
 			}),
 		);
@@ -78,6 +80,8 @@ describe("deleteTrailingMessages", () => {
 			id: "msg-1",
 			chatId: "chat-1",
 			createdAt: new Date("2024-01-01"),
+			role: "user" as const,
+			parts: [],
 		};
 		mocks.getMessageById.mockResolvedValue([testMessage]);
 		mocks.deleteMessagesByChatIdAfterTimestamp.mockResolvedValue(undefined);

@@ -8,7 +8,7 @@ import { getUser } from "@/lib/db/queries";
 import { authConfig } from "./auth.config";
 
 export const LoginSchema = z.object({
-	email: z.string().trim().toLowerCase(),
+	email: z.email().toLowerCase(),
 	password: z.string().min(1),
 });
 
