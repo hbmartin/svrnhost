@@ -70,4 +70,6 @@ vi.mock("server-only", () => ({}));
 
 afterEach(() => {
 	cleanup();
+	localStorageStore.clear();
+	vi.unstubAllGlobals();
 });
