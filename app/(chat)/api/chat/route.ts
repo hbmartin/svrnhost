@@ -17,9 +17,10 @@ import type { ModelCatalog, UsageLike } from "tokenlens/core";
 import { fetchModels } from "tokenlens/fetch";
 import { getUsage } from "tokenlens/helpers";
 import { auth, type UserType } from "@/app/(auth)/auth";
+import { createRequestHints } from "@/lib/ai/agents/chat-agent";
 import { entitlementsByUserType } from "@/lib/ai/entitlements";
 import type { ChatModel } from "@/lib/ai/models";
-import { type RequestHints, systemPrompt } from "@/lib/ai/prompts";
+import { systemPrompt } from "@/lib/ai/prompts";
 import { myProvider } from "@/lib/ai/providers";
 import { getWeather } from "@/lib/ai/tools/get-weather";
 import { listUpcomingEvents } from "@/lib/ai/tools/list-upcoming-events";
@@ -195,14 +196,8 @@ export async function POST(request: Request) {
 
 		const uiMessages = [...convertToUIMessages(messagesFromDb), message];
 
-		const { longitude, latitude, city, country } = geolocation(request);
-
-		const requestHints: RequestHints = {
-			longitude,
-			latitude,
-			city,
-			country,
-		};
+		const geo = geolocation(request);
+		const requestHints = createRequestHints(geo);
 
 		await saveMessages({
 			messages: [
@@ -258,13 +253,22 @@ export async function POST(request: Request) {
 						isEnabled: isProductionEnvironment,
 						functionId: "stream-text",
 					},
-					onFinish: async ({ usage }) => {
+					onFinish: async ({ usage, rawFinishReason }) => {
 						try {
 							const providers = await getTokenlensCatalog();
 							const modelId =
 								myProvider.languageModel(selectedChatModel).modelId;
+
+							// Build extended usage with v6 details
+							const extendedUsage = {
+								...usage,
+								rawFinishReason,
+								// inputTokenDetails and outputTokenDetails are already
+								// included in the usage object from AI SDK v6
+							};
+
 							if (!modelId) {
-								finalMergedUsage = usage;
+								finalMergedUsage = extendedUsage;
 								dataStream.write({
 									type: "data-usage",
 									data: finalMergedUsage,
@@ -273,7 +277,7 @@ export async function POST(request: Request) {
 							}
 
 							if (!providers) {
-								finalMergedUsage = usage;
+								finalMergedUsage = extendedUsage;
 								dataStream.write({
 									type: "data-usage",
 									data: finalMergedUsage,
@@ -286,11 +290,15 @@ export async function POST(request: Request) {
 								usage: usage as UsageLike,
 								providers,
 							});
-							finalMergedUsage = { ...usage, ...summary, modelId } as AppUsage;
+							finalMergedUsage = {
+								...extendedUsage,
+								...summary,
+								modelId,
+							} as AppUsage;
 							dataStream.write({ type: "data-usage", data: finalMergedUsage });
 						} catch (err) {
 							console.warn("TokenLens enrichment failed", err);
-							finalMergedUsage = usage;
+							finalMergedUsage = { ...usage, rawFinishReason };
 							dataStream.write({ type: "data-usage", data: finalMergedUsage });
 						}
 					},

@@ -40,9 +40,16 @@ export const getWeather = tool({
 			.describe("City name (e.g., 'San Francisco', 'New York', 'London')")
 			.optional(),
 	}),
+	strict: true,
+	inputExamples: [
+		{ input: { city: "San Francisco" } },
+		{ input: { city: "New York" } },
+		{ input: { latitude: 51.5074, longitude: -0.1278 } },
+	],
 	execute: async (input) => {
 		let latitude: number;
 		let longitude: number;
+		let resolvedCity = input.city;
 
 		if (input.city) {
 			const coords = await geocodeCity(input.city);
@@ -69,10 +76,29 @@ export const getWeather = tool({
 
 		const weatherData = await response.json();
 
-		if ("city" in input) {
-			weatherData.cityName = input.city;
+		if (resolvedCity) {
+			weatherData.cityName = resolvedCity;
 		}
 
 		return weatherData;
+	},
+	toModelOutput: async ({ input, output }) => {
+		// Send a concise summary to the model instead of the full API response
+		// This reduces token usage while preserving the full data for UI rendering
+		if ("error" in output) {
+			return {
+				type: "text" as const,
+				value: output.error,
+			};
+		}
+
+		const location = input.city ?? `${input.latitude}, ${input.longitude}`;
+		const temp = output.current?.temperature_2m;
+		const unit = output.current_units?.temperature_2m ?? "°C";
+
+		return {
+			type: "text" as const,
+			value: `Weather in ${location}: ${temp}${unit}. Sunrise: ${output.daily?.sunrise?.[0] ?? "N/A"}, Sunset: ${output.daily?.sunset?.[0] ?? "N/A"}.`,
+		};
 	},
 });
