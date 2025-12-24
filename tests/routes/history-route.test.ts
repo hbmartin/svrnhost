@@ -1,0 +1,74 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { DELETE, GET } from "@/app/(chat)/api/history/route";
+
+const mocks = vi.hoisted(() => ({
+	auth: vi.fn(),
+	getChatsByUserId: vi.fn(),
+	deleteAllChatsByUserId: vi.fn(),
+}));
+
+vi.mock("@/app/(auth)/auth", () => ({ auth: mocks.auth }));
+vi.mock("@/lib/db/queries", () => ({
+	getChatsByUserId: mocks.getChatsByUserId,
+	deleteAllChatsByUserId: mocks.deleteAllChatsByUserId,
+}));
+
+beforeEach(() => {
+	mocks.auth.mockReset();
+	mocks.getChatsByUserId.mockReset();
+	mocks.deleteAllChatsByUserId.mockReset();
+});
+
+describe("/api/history GET", () => {
+	it("returns 400 when both cursors are provided", async () => {
+		const request = {
+			nextUrl: new URL(
+				"http://localhost/api/history?starting_after=a&ending_before=b",
+			),
+		} as any;
+
+		const response = await GET(request);
+		expect(response.status).toBe(400);
+	});
+
+	it("returns 401 when unauthenticated", async () => {
+		mocks.auth.mockResolvedValue(null);
+		const request = {
+			nextUrl: new URL("http://localhost/api/history"),
+		} as any;
+
+		const response = await GET(request);
+		expect(response.status).toBe(401);
+	});
+
+	it("returns chat history for authenticated user", async () => {
+		mocks.auth.mockResolvedValue({ user: { id: "user-1" } });
+		mocks.getChatsByUserId.mockResolvedValue({ chats: [], hasMore: false });
+		const request = {
+			nextUrl: new URL("http://localhost/api/history?limit=5"),
+		} as any;
+
+		const response = await GET(request);
+		expect(response.status).toBe(200);
+		const body = await response.json();
+		expect(body.chats).toEqual([]);
+	});
+});
+
+describe("/api/history DELETE", () => {
+	it("returns 401 when unauthenticated", async () => {
+		mocks.auth.mockResolvedValue(null);
+		const response = await DELETE();
+		expect(response.status).toBe(401);
+	});
+
+	it("deletes all chats for authenticated user", async () => {
+		mocks.auth.mockResolvedValue({ user: { id: "user-1" } });
+		mocks.deleteAllChatsByUserId.mockResolvedValue({ deletedCount: 2 });
+
+		const response = await DELETE();
+		expect(response.status).toBe(200);
+		const body = await response.json();
+		expect(body.deletedCount).toBe(2);
+	});
+});

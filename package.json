@@ -15,8 +15,12 @@
 		"db:pull": "drizzle-kit pull",
 		"db:check": "drizzle-kit check",
 		"db:up": "drizzle-kit up",
-		"test:unit": "pnpm exec tsx --test \"tests/unit/**/*.test.ts\" \"**/*.unit.test.ts\"",
-		"test": "export PLAYWRIGHT=True && pnpm exec playwright test",
+		"test:unit": "vitest run",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"test:components": "vitest run tests/components",
+		"test:routes": "vitest run tests/routes",
+		"test:coverage": "vitest run --coverage",
 		"nb": "next build"
 	},
 	"dependencies": {
@@ -99,10 +103,10 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.3.10",
-		"@playwright/test": "^1.57.0",
 		"@tailwindcss/postcss": "^4.1.18",
 		"@tailwindcss/typography": "^0.5.19",
 		"@testing-library/react": "^16.3.1",
+		"@vitest/coverage-v8": "^4.0.16",
 		"@types/d3-scale": "^4.0.9",
 		"@types/node": "^24",
 		"@types/papaparse": "^5.5.2",
