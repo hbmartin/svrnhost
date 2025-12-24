@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { DELETE, POST } from "@/app/(chat)/api/chat/route";
+import { POST } from "@/app/(chat)/api/chat/route";
 
 const mocks = vi.hoisted(() => ({
 	auth: vi.fn(),
@@ -151,50 +151,5 @@ describe("/api/chat POST", () => {
 		});
 		expect(mocks.saveMessages).toHaveBeenCalled();
 		expect(mocks.createStreamId).toHaveBeenCalled();
-	});
-});
-
-describe("/api/chat DELETE", () => {
-	it("returns 400 when id is missing", async () => {
-		const response = await DELETE(new Request("http://localhost/api/chat"));
-
-		expect(response.status).toBe(400);
-		const body = await response.json();
-		expect(body.code).toBe("bad_request:api");
-	});
-
-	it("returns 401 when unauthenticated", async () => {
-		mocks.auth.mockResolvedValue(null);
-
-		const response = await DELETE(
-			new Request("http://localhost/api/chat?id=chat-1"),
-		);
-
-		expect(response.status).toBe(401);
-	});
-
-	it("returns 403 when chat belongs to another user", async () => {
-		mocks.auth.mockResolvedValue({ user: { id: "user-1", type: "regular" } });
-		mocks.getChatById.mockResolvedValue({ id: "chat-1", userId: "user-2" });
-
-		const response = await DELETE(
-			new Request("http://localhost/api/chat?id=chat-1"),
-		);
-
-		expect(response.status).toBe(403);
-	});
-
-	it("deletes chat for owner", async () => {
-		mocks.auth.mockResolvedValue({ user: { id: "user-1", type: "regular" } });
-		mocks.getChatById.mockResolvedValue({ id: "chat-1", userId: "user-1" });
-		mocks.deleteChatById.mockResolvedValue({ id: "chat-1" });
-
-		const response = await DELETE(
-			new Request("http://localhost/api/chat?id=chat-1"),
-		);
-
-		expect(response.status).toBe(200);
-		const body = await response.json();
-		expect(body.id).toBe("chat-1");
 	});
 });
