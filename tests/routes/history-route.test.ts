@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { NextRequest } from "next/server";
 import { DELETE, GET } from "@/app/(chat)/api/history/route";
 
 const mocks = vi.hoisted(() => ({
@@ -21,11 +22,9 @@ beforeEach(() => {
 
 describe("/api/history GET", () => {
 	it("returns 400 when both cursors are provided", async () => {
-		const request = {
-			nextUrl: new URL(
-				"http://localhost/api/history?starting_after=a&ending_before=b",
-			),
-		} as any;
+		const request = new NextRequest(
+			"http://localhost/api/history?starting_after=a&ending_before=b",
+		);
 
 		const response = await GET(request);
 		expect(response.status).toBe(400);
@@ -33,9 +32,7 @@ describe("/api/history GET", () => {
 
 	it("returns 401 when unauthenticated", async () => {
 		mocks.auth.mockResolvedValue(null);
-		const request = {
-			nextUrl: new URL("http://localhost/api/history"),
-		} as any;
+		const request = new NextRequest("http://localhost/api/history");
 
 		const response = await GET(request);
 		expect(response.status).toBe(401);
@@ -44,9 +41,7 @@ describe("/api/history GET", () => {
 	it("returns chat history for authenticated user", async () => {
 		mocks.auth.mockResolvedValue({ user: { id: "user-1" } });
 		mocks.getChatsByUserId.mockResolvedValue({ chats: [], hasMore: false });
-		const request = {
-			nextUrl: new URL("http://localhost/api/history?limit=5"),
-		} as any;
+		const request = new NextRequest("http://localhost/api/history?limit=5");
 
 		const response = await GET(request);
 		expect(response.status).toBe(200);
