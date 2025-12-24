@@ -10,7 +10,8 @@
       "Bash(pnpm test:*)",
       "Bash(tree:*)",
       "Bash(cat:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(pnpm test:coverage:*)"
     ]
   }
 }

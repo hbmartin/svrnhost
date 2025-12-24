@@ -292,12 +292,13 @@ export function Weather({
 
 	const sunrise = weatherAtLocation.daily.sunrise[0];
 	const sunset = weatherAtLocation.daily.sunset[0];
-	const isDay = sunrise && sunset
-		? isWithinInterval(new Date(weatherAtLocation.current.time), {
-				start: new Date(sunrise),
-				end: new Date(sunset),
-			})
-		: true;
+	const isDay =
+		sunrise && sunset
+			? isWithinInterval(new Date(weatherAtLocation.current.time), {
+					start: new Date(sunrise),
+					end: new Date(sunset),
+				})
+			: true;
 
 	const [isMobile, setIsMobile] = useState(false);
 
@@ -424,12 +425,10 @@ export function Weather({
 
 				<div className="mt-2 flex justify-between text-white/60 text-xs">
 					<div>
-						Sunrise:{" "}
-						{sunrise ? format(new Date(sunrise), "h:mm a") : "--"}
+						Sunrise: {sunrise ? format(new Date(sunrise), "h:mm a") : "--"}
 					</div>
 					<div>
-						Sunset:{" "}
-						{sunset ? format(new Date(sunset), "h:mm a") : "--"}
+						Sunset: {sunset ? format(new Date(sunset), "h:mm a") : "--"}
 					</div>
 				</div>
 			</div>

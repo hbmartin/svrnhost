@@ -13,7 +13,7 @@ import {
 	createResumableStreamContext,
 	type ResumableStreamContext,
 } from "resumable-stream";
-import type { ModelCatalog } from "tokenlens/core";
+import type { ModelCatalog, UsageLike } from "tokenlens/core";
 import { fetchModels } from "tokenlens/fetch";
 import { getUsage } from "tokenlens/helpers";
 import { auth, type UserType } from "@/app/(auth)/auth";
@@ -282,8 +282,11 @@ export async function POST(request: Request) {
 								return;
 							}
 
-							// eslint-disable-next-line @typescript-eslint/no-explicit-any
-							const summary = getUsage({ modelId, usage: usage as any, providers });
+							const summary = getUsage({
+								modelId,
+								usage: usage as UsageLike,
+								providers,
+							});
 							finalMergedUsage = { ...usage, ...summary, modelId } as AppUsage;
 							dataStream.write({ type: "data-usage", data: finalMergedUsage });
 						} catch (err) {
