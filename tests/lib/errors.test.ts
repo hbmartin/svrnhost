@@ -170,5 +170,11 @@ describe("lib/errors", () => {
 				expect(error.statusCode).toBe(expected);
 			});
 		}
+
+		it("returns 500 for unknown error types", () => {
+			// Cast to ErrorCode to test the default case in getStatusCodeByType
+			const error = new ChatSDKError("unknown_type:api" as ErrorCode);
+			expect(error.statusCode).toBe(500);
+		});
 	});
 });
