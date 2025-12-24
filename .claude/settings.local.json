@@ -8,7 +8,8 @@
       "Bash(wc:*)",
       "Bash(grep:*)",
       "Bash(pnpm test:*)",
-      "Bash(tree:*)"
+      "Bash(tree:*)",
+      "Bash(cat:*)"
     ]
   }
 }
