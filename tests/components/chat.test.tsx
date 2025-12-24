@@ -1,7 +1,7 @@
 import { render, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { DataStreamProvider } from "@/components/data-stream-provider";
 import { Chat } from "@/components/chat";
+import { DataStreamProvider } from "@/components/data-stream-provider";
 import type { ChatMessage } from "@/lib/types";
 
 const sendMessage = vi.fn();

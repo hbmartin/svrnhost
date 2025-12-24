@@ -20,12 +20,12 @@
  * - 500: Server misconfiguration (missing env vars) or DB error
  */
 import { after } from "next/server";
+import { getTwilioConfig } from "@/lib/config/server";
+import { logWhatsAppEvent } from "./observability";
 import { createPendingLog, logWebhookError } from "./repository";
 import { processWhatsAppMessage } from "./service";
 import { validateTwilioRequest } from "./twilio";
 import { incomingMessageSchema } from "./types";
-import { logWhatsAppEvent } from "./observability";
-import { getTwilioConfig } from "@/lib/config/server";
 
 export async function POST(request: Request) {
 	const rawBody = await request.text();
@@ -41,7 +41,8 @@ export async function POST(request: Request) {
 	const rawParams = Object.fromEntries(new URLSearchParams(rawBody));
 	const rawMessageSid =
 		typeof rawParams.MessageSid === "string" ? rawParams.MessageSid : undefined;
-	const rawWaId = typeof rawParams.WaId === "string" ? rawParams.WaId : undefined;
+	const rawWaId =
+		typeof rawParams.WaId === "string" ? rawParams.WaId : undefined;
 
 	logWhatsAppEvent("info", {
 		event: "whatsapp.inbound.received",

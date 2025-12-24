@@ -8,7 +8,13 @@ import {
 	isValidWhatsAppResponse,
 	LLM_CONFIG,
 } from "@/lib/ai/safety";
+import { getTwilioConfig } from "@/lib/config/server";
 import { convertToUIMessages } from "@/lib/utils";
+import {
+	logWhatsAppEvent,
+	setWhatsAppSpanAttributes,
+	type WhatsAppCorrelationIds,
+} from "./observability";
 import {
 	findUserByPhone,
 	getChatMessages,
@@ -26,12 +32,11 @@ import {
 } from "./repository";
 import {
 	createTwilioClient,
+	getTwilioErrorMetadata,
 	sendTypingIndicator,
 	sendWhatsAppMessageWithRetry,
-	getTwilioErrorMetadata,
 	type TwilioClient,
 } from "./twilio";
-import { getTwilioConfig } from "@/lib/config/server";
 import {
 	type IncomingMessage,
 	type WhatsAppAIResponse,
@@ -43,11 +48,6 @@ import {
 	getAttemptsFromError,
 	normalizeWhatsAppNumber,
 } from "./utils";
-import {
-	logWhatsAppEvent,
-	setWhatsAppSpanAttributes,
-	type WhatsAppCorrelationIds,
-} from "./observability";
 
 const tracer = trace.getTracer("whatsapp-webhook");
 
@@ -261,8 +261,7 @@ async function trySendTypingIndicator(
 	try {
 		await sendTypingIndicator(client, payload, correlation);
 	} catch (error) {
-		const errorMessage =
-			error instanceof Error ? error.message : String(error);
+		const errorMessage = error instanceof Error ? error.message : String(error);
 		const conversationSid = payload.ConversationSid;
 
 		logWhatsAppEvent("error", {
@@ -272,11 +271,7 @@ async function trySendTypingIndicator(
 			error: errorMessage,
 			details: conversationSid ? { conversationSid } : undefined,
 		});
-		await logTypingFailed(
-			payload.MessageSid,
-			errorMessage,
-			conversationSid,
-		);
+		await logTypingFailed(payload.MessageSid, errorMessage, conversationSid);
 	}
 }
 
@@ -290,8 +285,7 @@ async function trySendWhatsAppMessageWithRetry(params: {
 	try {
 		return await sendWhatsAppMessageWithRetry(params);
 	} catch (error) {
-		const errorMessage =
-			error instanceof Error ? error.message : String(error);
+		const errorMessage = error instanceof Error ? error.message : String(error);
 		const twilioMetadata = getTwilioErrorMetadata(error);
 		const attempts = getAttemptsFromError(error);
 		const errorDetails = {

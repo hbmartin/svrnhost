@@ -5,8 +5,8 @@ import {
 	defaultSettingsMiddleware,
 	wrapLanguageModel,
 } from "ai";
-import { isTestEnvironment } from "../constants";
 import { getAiConfig } from "@/lib/config/server";
+import { isTestEnvironment } from "../constants";
 
 let hasLoggedProviderConfig = false;
 

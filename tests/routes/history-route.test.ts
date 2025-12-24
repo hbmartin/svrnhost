@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DELETE, GET } from "@/app/(chat)/api/history/route";
 
 const mocks = vi.hoisted(() => ({

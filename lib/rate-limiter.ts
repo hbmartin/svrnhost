@@ -41,9 +41,11 @@ export class TokenBucketRateLimiter {
 	private lastCleanup: number = Date.now();
 
 	constructor(config: RateLimiterConfig = {}) {
-		this.tokensPerSecond = config.tokensPerSecond ?? DEFAULT_CONFIG.tokensPerSecond;
+		this.tokensPerSecond =
+			config.tokensPerSecond ?? DEFAULT_CONFIG.tokensPerSecond;
 		this.bucketSize = config.bucketSize ?? this.tokensPerSecond;
-		this.cleanupAfterMs = config.cleanupAfterMs ?? DEFAULT_CONFIG.cleanupAfterMs;
+		this.cleanupAfterMs =
+			config.cleanupAfterMs ?? DEFAULT_CONFIG.cleanupAfterMs;
 	}
 
 	/**
@@ -133,7 +135,9 @@ export class TokenBucketRateLimiter {
 			// Check if we've exceeded max wait time
 			const elapsed = now - startTime;
 			if (elapsed >= maxWaitMs) {
-				throw new Error(`Rate limit exceeded for key: ${key}. Could not acquire token within ${maxWaitMs}ms`);
+				throw new Error(
+					`Rate limit exceeded for key: ${key}. Could not acquire token within ${maxWaitMs}ms`,
+				);
 			}
 
 			// Calculate wait time until next token is available

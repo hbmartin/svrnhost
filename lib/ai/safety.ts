@@ -29,7 +29,8 @@ export const LLM_CONFIG = {
  * This is sent to the user when we cannot generate a proper response.
  */
 export const FALLBACK_RESPONSE: WhatsAppAIResponse = {
-	message: "We're experiencing technical difficulties. Please try again shortly.",
+	message:
+		"We're experiencing technical difficulties. Please try again shortly.",
 };
 
 /**

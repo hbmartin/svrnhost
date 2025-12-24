@@ -25,7 +25,11 @@ export function logWhatsAppEvent(
 	fields: WhatsAppLogFields,
 ): void {
 	const logger =
-		level === "error" ? console.error : level === "warn" ? console.warn : console.log;
+		level === "error"
+			? console.error
+			: level === "warn"
+				? console.warn
+				: console.log;
 
 	try {
 		logger("[whatsapp]", {
@@ -37,7 +41,10 @@ export function logWhatsAppEvent(
 	} catch (loggingError) {
 		// Logging must never break the handler, but report failures for debugging
 		console.error("[whatsapp] logging failed", {
-			loggingError: loggingError instanceof Error ? loggingError.message : String(loggingError),
+			loggingError:
+				loggingError instanceof Error
+					? loggingError.message
+					: String(loggingError),
 			originalEvent: fields.event,
 		});
 	}

@@ -4,17 +4,13 @@ import type { MessageListInstanceCreateOptions } from "twilio/lib/rest/api/v2010
 import { WHATSAPP_LIMITS } from "@/lib/config/limits";
 import { getTwilioConfig } from "@/lib/config/server";
 import { whatsappRateLimiter } from "@/lib/rate-limiter";
-import {
-	isNetworkError,
-	isRetryableHttpStatus,
-	withRetry,
-} from "@/lib/retry";
-import type { IncomingMessage, WhatsAppAIResponse } from "./types";
+import { isNetworkError, isRetryableHttpStatus, withRetry } from "@/lib/retry";
 import {
 	logWhatsAppEvent,
 	setWhatsAppSpanAttributes,
 	type WhatsAppCorrelationIds,
 } from "./observability";
+import type { IncomingMessage, WhatsAppAIResponse } from "./types";
 import { formatWhatsAppNumber } from "./utils";
 
 export type TwilioClient = twilio.Twilio;
@@ -182,7 +178,9 @@ export async function sendWhatsAppMessage({
 	const buttonsContentSid = config.whatsappButtonsContentSid;
 	const fromNumber = from ?? config.whatsappFrom ?? undefined;
 	const formattedTo = formatWhatsAppNumber(to);
-	const formattedFrom = fromNumber ? formatWhatsAppNumber(fromNumber) : undefined;
+	const formattedFrom = fromNumber
+		? formatWhatsAppNumber(fromNumber)
+		: undefined;
 
 	const payload: MessageListInstanceCreateOptions = {
 		to: formattedTo,

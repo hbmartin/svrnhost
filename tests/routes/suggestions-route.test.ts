@@ -18,9 +18,7 @@ beforeEach(() => {
 
 describe("/api/suggestions GET", () => {
 	it("returns 400 when documentId is missing", async () => {
-		const response = await GET(
-			new Request("http://localhost/api/suggestions"),
-		);
+		const response = await GET(new Request("http://localhost/api/suggestions"));
 		expect(response.status).toBe(400);
 	});
 

@@ -75,19 +75,27 @@ export async function withRetry<T>(
 	const context = config.context ?? "operation";
 
 	if (maxAttempts < 1) {
-		throw new Error(`withRetry: maxAttempts must be at least 1, got ${maxAttempts}`);
+		throw new Error(
+			`withRetry: maxAttempts must be at least 1, got ${maxAttempts}`,
+		);
 	}
 
 	if (!Number.isFinite(baseDelayMs)) {
-		throw new Error(`withRetry: baseDelayMs must be a finite number, got ${baseDelayMs}`);
+		throw new Error(
+			`withRetry: baseDelayMs must be a finite number, got ${baseDelayMs}`,
+		);
 	}
 
 	if (!Number.isFinite(maxDelayMs)) {
-		throw new Error(`withRetry: maxDelayMs must be a finite number, got ${maxDelayMs}`);
+		throw new Error(
+			`withRetry: maxDelayMs must be a finite number, got ${maxDelayMs}`,
+		);
 	}
 
 	if (baseDelayMs < 0) {
-		throw new Error(`withRetry: baseDelayMs must be non-negative, got ${baseDelayMs}`);
+		throw new Error(
+			`withRetry: baseDelayMs must be non-negative, got ${baseDelayMs}`,
+		);
 	}
 
 	if (maxDelayMs < baseDelayMs) {
@@ -102,7 +110,9 @@ export async function withRetry<T>(
 		try {
 			const result = await fn();
 			if (attempt > 0) {
-				console.log(`[retry:${context}] succeeded after ${attempt + 1} attempts`);
+				console.log(
+					`[retry:${context}] succeeded after ${attempt + 1} attempts`,
+				);
 			}
 			return { result, attempts: attempt + 1 };
 		} catch (error) {
@@ -128,9 +138,12 @@ export async function withRetry<T>(
 			}
 
 			const delayMs = calculateDelay(attempt, baseDelayMs, maxDelayMs);
-			console.log(`[retry:${context}] attempt ${attempts} failed, retrying in ${Math.round(delayMs)}ms`, {
-				error: error instanceof Error ? error.message : String(error),
-			});
+			console.log(
+				`[retry:${context}] attempt ${attempts} failed, retrying in ${Math.round(delayMs)}ms`,
+				{
+					error: error instanceof Error ? error.message : String(error),
+				},
+			);
 
 			await sleep(delayMs);
 		}
