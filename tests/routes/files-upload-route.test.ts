@@ -18,14 +18,18 @@ describe("/api/files/upload POST", () => {
 	it("returns 401 when unauthenticated", async () => {
 		mocks.auth.mockResolvedValue(null);
 
-		const response = await POST(new Request("http://localhost/api/files/upload"));
+		const response = await POST(
+			new Request("http://localhost/api/files/upload"),
+		);
 		expect(response.status).toBe(401);
 	});
 
 	it("returns 400 when request body is missing", async () => {
 		mocks.auth.mockResolvedValue({ user: { id: "user-1" } });
 
-		const response = await POST(new Request("http://localhost/api/files/upload"));
+		const response = await POST(
+			new Request("http://localhost/api/files/upload"),
+		);
 		expect(response.status).toBe(400);
 	});
 
@@ -36,10 +40,7 @@ describe("/api/files/upload POST", () => {
 		const file = Object.assign(new Blob(["content"], { type: "text/plain" }), {
 			name: "test.txt",
 		});
-		formData.append(
-			"file",
-			file,
-		);
+		formData.append("file", file);
 
 		const request = {
 			body: {},

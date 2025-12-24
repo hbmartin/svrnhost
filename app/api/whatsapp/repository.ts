@@ -1,3 +1,4 @@
+import type { AIFailureType } from "@/lib/ai/safety";
 import {
 	createPendingWebhookLog,
 	getLatestChatForUser,
@@ -12,10 +13,9 @@ import {
 import type { DBMessage, User } from "@/lib/db/schema";
 import type { Attachment } from "@/lib/types";
 import { generateUUID } from "@/lib/utils";
-import type { AIFailureType } from "@/lib/ai/safety";
+import { logWhatsAppEvent } from "./observability";
 import type { IncomingMessage, WhatsAppAIResponse } from "./types";
 import { sourceLabel } from "./types";
-import { logWhatsAppEvent } from "./observability";
 import { normalizeWhatsAppNumber } from "./utils";
 
 export interface CreateInboundMessageParams {

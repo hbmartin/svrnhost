@@ -1,13 +1,13 @@
 {
-  "permissions": {
-    "allow": [
-      "Bash(pnpm nb:*)",
-      "Bash(npx tsc:*)",
-      "Bash(head:*)",
-      "Bash(tail:*)",
-      "Bash(wc:*)",
-      "Bash(grep:*)",
-      "Bash(pnpm test:*)"
-    ]
-  }
+	"permissions": {
+		"allow": [
+			"Bash(pnpm nb:*)",
+			"Bash(npx tsc:*)",
+			"Bash(head:*)",
+			"Bash(tail:*)",
+			"Bash(wc:*)",
+			"Bash(grep:*)",
+			"Bash(pnpm test:*)"
+		]
+	}
 }

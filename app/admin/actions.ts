@@ -55,4 +55,3 @@ export async function addUser(
 		return { status: "failed" };
 	}
 }
-

@@ -80,7 +80,8 @@ export function getTwilioConfig(): TwilioConfig {
 		const requiredMissing: string[] = [];
 		if (!accountSid) requiredMissing.push("TWILIO_ACCOUNT_SID");
 		if (!authToken) requiredMissing.push("TWILIO_AUTH_TOKEN");
-		if (!whatsappWebhookUrl) requiredMissing.push("TWILIO_WHATSAPP_WEBHOOK_URL");
+		if (!whatsappWebhookUrl)
+			requiredMissing.push("TWILIO_WHATSAPP_WEBHOOK_URL");
 
 		throw new Error(
 			`Missing required Twilio configuration: ${requiredMissing.join(", ")}. ` +
@@ -131,9 +132,7 @@ export function getAiConfig(): AiConfig {
 	}
 
 	if (missing.length > 0 && shouldEnforce) {
-		throw new Error(
-			`Missing AI configuration: ${missing.join(", ")}`,
-		);
+		throw new Error(`Missing AI configuration: ${missing.join(", ")}`);
 	}
 
 	cachedAiConfig = {

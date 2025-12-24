@@ -93,7 +93,11 @@ describe("MultimodalInput", () => {
 		const stop = vi.fn();
 		const setMessagesSpy = vi.fn();
 		render(
-			<Harness status="submitted" stop={stop} setMessagesSpy={setMessagesSpy} />,
+			<Harness
+				status="submitted"
+				stop={stop}
+				setMessagesSpy={setMessagesSpy}
+			/>,
 		);
 
 		const stopButton = screen.getByTestId("stop-button");
@@ -117,7 +121,7 @@ describe("MultimodalInput", () => {
 
 		const { container } = render(<Harness sendMessage={sendMessage} />);
 		const fileInput = container.querySelector(
-			"input[type=\"file\"]",
+			'input[type="file"]',
 		) as HTMLInputElement;
 
 		const file = new File(["content"], "test.png", { type: "image/png" });

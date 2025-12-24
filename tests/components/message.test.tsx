@@ -1,9 +1,9 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { type ReactNode, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
+import { deleteTrailingMessages } from "@/app/(chat)/actions";
 import { DataStreamProvider } from "@/components/data-stream-provider";
 import { PreviewMessage } from "@/components/message";
-import { deleteTrailingMessages } from "@/app/(chat)/actions";
 import type { ChatMessage } from "@/lib/types";
 
 vi.mock("sonner", () => ({
@@ -127,9 +127,7 @@ describe("PreviewMessage", () => {
 		const editButton = screen.getByTestId("message-edit-button");
 		fireEvent.click(editButton);
 
-		const editor = screen.getByTestId(
-			"message-editor",
-		) as HTMLTextAreaElement;
+		const editor = screen.getByTestId("message-editor") as HTMLTextAreaElement;
 		fireEvent.change(editor, { target: { value: "Why is grass green?" } });
 
 		const sendButton = screen.getByTestId("message-editor-send-button");

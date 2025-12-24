@@ -21,9 +21,9 @@ import { entitlementsByUserType } from "@/lib/ai/entitlements";
 import type { ChatModel } from "@/lib/ai/models";
 import { type RequestHints, systemPrompt } from "@/lib/ai/prompts";
 import { myProvider } from "@/lib/ai/providers";
-import { getAiConfig } from "@/lib/config/server";
 import { getWeather } from "@/lib/ai/tools/get-weather";
 import { listUpcomingEvents } from "@/lib/ai/tools/list-upcoming-events";
+import { getAiConfig } from "@/lib/config/server";
 import { isProductionEnvironment } from "@/lib/constants";
 import {
 	createStreamId,
