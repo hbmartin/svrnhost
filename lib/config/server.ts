@@ -71,34 +71,37 @@ export function getTwilioConfig(): TwilioConfig {
 		return cachedTwilioConfig;
 	}
 
-	const missing: string[] = [];
+	const accountSid = env.TWILIO_ACCOUNT_SID;
+	const authToken = env.TWILIO_AUTH_TOKEN;
+	const whatsappWebhookUrl = env.TWILIO_WHATSAPP_WEBHOOK_URL;
+
+	// Always fail fast for core required fields - empty strings cause cryptic SDK errors
+	if (!accountSid || !authToken || !whatsappWebhookUrl) {
+		const requiredMissing: string[] = [];
+		if (!accountSid) requiredMissing.push("TWILIO_ACCOUNT_SID");
+		if (!authToken) requiredMissing.push("TWILIO_AUTH_TOKEN");
+		if (!whatsappWebhookUrl) requiredMissing.push("TWILIO_WHATSAPP_WEBHOOK_URL");
+
+		throw new Error(
+			`Missing required Twilio configuration: ${requiredMissing.join(", ")}. ` +
+				"Set these environment variables or check your test setup.",
+		);
+	}
+
 	const hasSender = Boolean(
 		env.TWILIO_MESSAGING_SERVICE_SID || env.TWILIO_WHATSAPP_FROM,
 	);
 
-	if (!env.TWILIO_ACCOUNT_SID) {
-		missing.push("TWILIO_ACCOUNT_SID");
-	}
-	if (!env.TWILIO_AUTH_TOKEN) {
-		missing.push("TWILIO_AUTH_TOKEN");
-	}
-	if (!env.TWILIO_WHATSAPP_WEBHOOK_URL) {
-		missing.push("TWILIO_WHATSAPP_WEBHOOK_URL");
-	}
-	if (!hasSender) {
-		missing.push("TWILIO_MESSAGING_SERVICE_SID or TWILIO_WHATSAPP_FROM");
-	}
-
-	if (missing.length > 0 && shouldEnforce) {
+	if (!hasSender && shouldEnforce) {
 		throw new Error(
-			`Missing Twilio configuration: ${missing.join(", ")}`,
+			"Missing Twilio sender configuration: TWILIO_MESSAGING_SERVICE_SID or TWILIO_WHATSAPP_FROM",
 		);
 	}
 
 	cachedTwilioConfig = {
-		accountSid: env.TWILIO_ACCOUNT_SID ?? "",
-		authToken: env.TWILIO_AUTH_TOKEN ?? "",
-		whatsappWebhookUrl: env.TWILIO_WHATSAPP_WEBHOOK_URL ?? "",
+		accountSid,
+		authToken,
+		whatsappWebhookUrl,
 		messagingServiceSid: env.TWILIO_MESSAGING_SERVICE_SID ?? null,
 		whatsappFrom: env.TWILIO_WHATSAPP_FROM ?? null,
 		conversationsAgentIdentity: env.TWILIO_CONVERSATIONS_AGENT_IDENTITY ?? null,
