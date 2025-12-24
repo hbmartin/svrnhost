@@ -40,7 +40,7 @@ if (!parsedEnv.success) {
 }
 
 const env = parsedEnv.data;
-const nodeEnv = env.NODE_ENV ?? process.env.NODE_ENV;
+const nodeEnv = env.NODE_ENV;
 const isTestLike = isTestEnvironment || nodeEnv === "test";
 const shouldEnforce = env.SKIP_ENV_VALIDATION !== "true" && !isTestLike;
 
