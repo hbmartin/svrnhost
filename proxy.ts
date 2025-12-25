@@ -3,7 +3,7 @@ import { getToken } from "next-auth/jwt";
 import { isDevelopmentEnvironment } from "./lib/constants";
 
 const PUBLIC_ROUTES = new Set(["/login"]);
-const PUBLIC_FILE_EXTENSION_REGEX = /\.(?:ico|jpe?g|png|svg)$/i;
+const PUBLIC_FILE_EXTENSION_REGEX = /\.(?:ico|jpe?g|png|svg|gif|webp)$/i;
 
 export async function proxy(request: NextRequest) {
 	const { pathname } = request.nextUrl;
@@ -24,6 +24,11 @@ export async function proxy(request: NextRequest) {
 	}
 
 	if (pathname.startsWith("/api/auth")) {
+		return NextResponse.next();
+	}
+
+	// Allow WhatsApp webhook (uses X-Twilio-Signature for auth)
+	if (pathname.startsWith("/api/whatsapp")) {
 		return NextResponse.next();
 	}
 
