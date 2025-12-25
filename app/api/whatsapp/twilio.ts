@@ -159,6 +159,19 @@ export interface SendMessageParams {
 	from?: string | undefined;
 	response: WhatsAppAIResponse;
 	correlation?: WhatsAppCorrelationIds | undefined;
+	/** Optional: Override the content template SID (takes precedence over env var) */
+	contentSid?: string | undefined;
+	/** Optional: Variables to substitute in the template */
+	contentVariables?: Record<string, string> | undefined;
+}
+
+export interface SendTemplateParams {
+	client: TwilioClient;
+	to: string;
+	from?: string | undefined;
+	contentSid: string;
+	contentVariables?: Record<string, string> | undefined;
+	correlation?: WhatsAppCorrelationIds | undefined;
 }
 
 export interface SendMessageResult {
@@ -172,6 +185,8 @@ export async function sendWhatsAppMessage({
 	from,
 	response,
 	correlation,
+	contentSid: overrideContentSid,
+	contentVariables: overrideContentVariables,
 }: SendMessageParams): Promise<SendMessageResult> {
 	const config = getLazyTwilioConfig();
 	const messagingServiceSid = config.messagingServiceSid;
@@ -202,7 +217,15 @@ export async function sendWhatsAppMessage({
 		];
 	}
 
-	if (response.buttons?.length && buttonsContentSid) {
+	// Priority: explicit contentSid > buttons with env var > plain message
+	if (overrideContentSid) {
+		// Use explicit template override
+		payload.contentSid = overrideContentSid;
+		if (overrideContentVariables) {
+			payload.contentVariables = JSON.stringify(overrideContentVariables);
+		}
+	} else if (response.buttons?.length && buttonsContentSid) {
+		// Use buttons template from env var (backward compatible)
 		payload.contentSid = buttonsContentSid;
 		payload.contentVariables = JSON.stringify({
 			message: response.message,
@@ -362,6 +385,142 @@ export async function sendWhatsAppMessageWithRetry(
 	if (attempts > 1) {
 		logWhatsAppEvent("warn", {
 			event: "whatsapp.outbound.send_retried",
+			direction: "outbound",
+			...correlation,
+			toNumber: to,
+			details: { attempts, outboundMessageSid: result.sid },
+		});
+	}
+
+	return result;
+}
+
+/**
+ * Send a template message directly using Content SID.
+ * This is a simplified version for sending pre-approved templates.
+ */
+export async function sendTemplateMessage({
+	client,
+	to,
+	from,
+	contentSid,
+	contentVariables,
+	correlation,
+}: SendTemplateParams): Promise<SendMessageResult> {
+	const config = getLazyTwilioConfig();
+	const messagingServiceSid = config.messagingServiceSid;
+	const fromNumber = from ?? config.whatsappFrom ?? undefined;
+	const formattedTo = formatWhatsAppNumber(to);
+	const formattedFrom = fromNumber
+		? formatWhatsAppNumber(fromNumber)
+		: undefined;
+
+	const payload: MessageListInstanceCreateOptions = {
+		to: formattedTo,
+		contentSid,
+	};
+
+	if (contentVariables) {
+		payload.contentVariables = JSON.stringify(contentVariables);
+	}
+
+	if (messagingServiceSid) {
+		payload.messagingServiceSid = messagingServiceSid;
+	} else if (formattedFrom) {
+		payload.from = formattedFrom;
+	}
+
+	return tracer.startActiveSpan("twilio.template.send", async (span) => {
+		setWhatsAppSpanAttributes(span, {
+			event: "whatsapp.template.send",
+			direction: "outbound",
+			...correlation,
+			toNumber: to,
+			fromNumber: from,
+		});
+		span.setAttribute("twilio.operation", "template.send");
+		span.setAttribute("twilio.to", formattedTo);
+		span.setAttribute("twilio.content_sid", contentSid);
+		if (formattedFrom) {
+			span.setAttribute("twilio.from", formattedFrom);
+		}
+
+		try {
+			const result = await client.messages.create(payload);
+			span.setAttribute("twilio.message_sid", result.sid);
+			if (result.status) {
+				span.setAttribute("twilio.status", result.status);
+			}
+
+			logWhatsAppEvent("info", {
+				event: "whatsapp.template.sent",
+				direction: "outbound",
+				...correlation,
+				toNumber: to,
+				fromNumber: from,
+				status: result.status ?? "unknown",
+				details: { outboundMessageSid: result.sid, contentSid },
+			});
+
+			span.setStatus({ code: SpanStatusCode.OK });
+
+			return {
+				sid: result.sid,
+				status: result.status,
+			};
+		} catch (error) {
+			const errorMessage =
+				error instanceof Error ? error.message : String(error);
+			span.recordException(error as Error);
+			span.setStatus({ code: SpanStatusCode.ERROR, message: errorMessage });
+			throw error;
+		} finally {
+			span.end();
+		}
+	});
+}
+
+/**
+ * Send a template message with rate limiting and retry logic.
+ */
+export async function sendTemplateMessageWithRetry(
+	params: SendTemplateParams,
+): Promise<SendMessageResult> {
+	const { to, correlation } = params;
+
+	try {
+		await whatsappRateLimiter.acquire(
+			WHATSAPP_SENDER_RATE_LIMIT_KEY,
+			WHATSAPP_LIMITS.senderRateLimitMaxWaitMs,
+		);
+	} catch (rateLimitError) {
+		logWhatsAppEvent("error", {
+			event: "whatsapp.template.rate_limit_failed",
+			direction: "outbound",
+			...correlation,
+			toNumber: to,
+			error:
+				rateLimitError instanceof Error
+					? rateLimitError.message
+					: String(rateLimitError),
+		});
+		throw rateLimitError;
+	}
+
+	const { result, attempts } = await withRetry(
+		() => sendTemplateMessage(params),
+		{
+			maxAttempts: WHATSAPP_LIMITS.retry.maxAttempts,
+			baseDelayMs: WHATSAPP_LIMITS.retry.baseDelayMs,
+			maxDelayMs: WHATSAPP_LIMITS.retry.maxDelayMs,
+			context: "twilio-template-send",
+			shouldRetry: (error) => isTwilioErrorRetryable(error),
+		},
+	);
+
+	if (attempts > 1) {
+		logWhatsAppEvent("warn", {
+			event: "whatsapp.template.send_retried",
 			direction: "outbound",
 			...correlation,
 			toNumber: to,

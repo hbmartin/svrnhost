@@ -28,3 +28,12 @@ export const LLM_LIMITS = {
 	/** Minimum response length to accept. */
 	minResponseLength: 1,
 } as const;
+
+export const TEMPLATE_LIMITS = {
+	/** Maximum recipients per immediate bulk send. */
+	maxBulkRecipients: 100,
+	/** Maximum recipients per scheduled send. */
+	maxScheduledRecipients: 1000,
+	/** Minimum seconds between template syncs. */
+	syncCooldownSeconds: 60,
+} as const;

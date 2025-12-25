@@ -199,3 +199,81 @@ export const webhookLog = pgTable(
 );
 
 export type WebhookLog = InferSelectModel<typeof webhookLog>;
+
+// WhatsApp Message Templates synced from Twilio Content API
+export const messageTemplate = pgTable(
+	"MessageTemplate",
+	{
+		id: uuid("id").primaryKey().notNull().defaultRandom(),
+		// Twilio Content SID (HXxxxxxxxx format)
+		contentSid: varchar("contentSid", { length: 64 }).notNull(),
+		// Human-readable name
+		friendlyName: varchar("friendlyName", { length: 256 }).notNull(),
+		// ISO 639-1 language code (e.g., "en")
+		language: varchar("language", { length: 10 }).notNull(),
+		// Template variables definition (e.g., {"1": "customer_name"})
+		variables: jsonb("variables").$type<Record<string, string> | null>(),
+		// Content types (twilio/text, twilio/quick-reply, etc.)
+		types: jsonb("types").$type<Record<string, unknown>>().notNull(),
+		// WhatsApp approval status
+		whatsappApprovalStatus: varchar("whatsappApprovalStatus", {
+			length: 32,
+		}).default("unsubmitted"),
+		// WhatsApp template name (required for approval)
+		whatsappTemplateName: varchar("whatsappTemplateName", { length: 256 }),
+		// WhatsApp category (UTILITY, MARKETING, AUTHENTICATION)
+		whatsappCategory: varchar("whatsappCategory", { length: 32 }),
+		// Rejection reason from WhatsApp (if rejected)
+		rejectionReason: text("rejectionReason"),
+		// Timestamps from Twilio
+		twilioCreatedAt: timestamp("twilioCreatedAt"),
+		twilioUpdatedAt: timestamp("twilioUpdatedAt"),
+		// Local timestamps
+		createdAt: timestamp("createdAt").notNull().defaultNow(),
+		updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+		lastSyncedAt: timestamp("lastSyncedAt").notNull().defaultNow(),
+		// Soft delete flag
+		isDeleted: boolean("isDeleted").notNull().default(false),
+	},
+	(table) => ({
+		contentSidUnique: uniqueIndex("MessageTemplate_contentSid_unique").on(
+			table.contentSid,
+		),
+	}),
+);
+
+export type MessageTemplate = InferSelectModel<typeof messageTemplate>;
+
+// Scheduled Messages - queue for future template sends
+export const scheduledMessage = pgTable("ScheduledMessage", {
+	id: uuid("id").primaryKey().notNull().defaultRandom(),
+	// Reference to template (optional - can use contentSid directly)
+	templateId: uuid("templateId").references(() => messageTemplate.id),
+	// Direct content SID (for templates not in local DB)
+	contentSid: varchar("contentSid", { length: 64 }),
+	// Variable values for this send
+	contentVariables: jsonb("contentVariables").$type<Record<
+		string,
+		string
+	> | null>(),
+	// Recipient phone numbers (E.164 format)
+	recipients: jsonb("recipients").$type<string[]>().notNull(),
+	// When to send
+	scheduledAt: timestamp("scheduledAt").notNull(),
+	// Execution status
+	status: varchar("status", { length: 32 }).notNull().default("pending"),
+	// Results after sending
+	results: jsonb("results").$type<{
+		sent: { phone: string; messageSid: string }[];
+		failed: { phone: string; error: string }[];
+	} | null>(),
+	// Error if failed
+	error: text("error"),
+	// Processing timestamps
+	processedAt: timestamp("processedAt"),
+	createdAt: timestamp("createdAt").notNull().defaultNow(),
+	// Who scheduled this
+	createdBy: varchar("createdBy", { length: 256 }),
+});
+
+export type ScheduledMessage = InferSelectModel<typeof scheduledMessage>;
