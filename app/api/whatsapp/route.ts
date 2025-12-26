@@ -19,14 +19,16 @@
  * - 403: Missing or invalid Twilio signature
  * - 500: Server misconfiguration (missing env vars) or DB error
  */
-import { context } from "@opentelemetry/api";
+import { context, trace } from "@opentelemetry/api";
 import { after } from "next/server";
 import { getTwilioConfig } from "@/lib/config/server";
-import { logWhatsAppEvent } from "./observability";
+import { logWhatsAppEvent, setWhatsAppSpanAttributes } from "./observability";
 import { createPendingLog, logWebhookError } from "./repository";
 import { processWhatsAppMessage } from "./service";
 import { validateTwilioRequest } from "./twilio";
 import { incomingMessageSchema } from "./types";
+
+const tracer = trace.getTracer("whatsapp-webhook");
 
 export async function POST(request: Request) {
 	const rawBody = await request.text();
@@ -204,6 +206,17 @@ export async function POST(request: Request) {
 		direction: "internal",
 		messageSid: payload.MessageSid,
 		waId: payload.WaId,
+	});
+
+	tracer.startActiveSpan("whatsapp.webhook.pre_after", (span) => {
+		setWhatsAppSpanAttributes(span, {
+			event: "whatsapp.webhook.pre_after",
+			direction: "internal",
+			messageSid: payload.MessageSid,
+			waId: payload.WaId,
+			requestUrl: webhookUrl,
+		});
+		span.end();
 	});
 
 	// Capture the current trace context before after() runs
