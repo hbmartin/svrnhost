@@ -381,7 +381,11 @@ async function generateSafeAIResponse(
 					event: "whatsapp.processing.response_generated",
 					chatId,
 					requestUrl,
-					// details: aiGeneratedFullResponse,
+					details: {
+						text: aiGeneratedFullResponse.text,
+						finishReason: aiGeneratedFullResponse.finishReason,
+						usage: aiGeneratedFullResponse.usage,
+					},
 				});
 				const aiResponse = aiGeneratedFullResponse.text;
 
