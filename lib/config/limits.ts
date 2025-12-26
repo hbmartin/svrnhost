@@ -1,5 +1,14 @@
 export const WHATSAPP_LIMITS = {
 	/**
+	 * Maximum message length Twilio can accept for WhatsApp.
+	 * Messages longer than this must be chunked into multiple sends.
+	 */
+	maxMessageLength: 1600,
+	/**
+	 * Delay in milliseconds between sending chunked messages.
+	 */
+	chunkDelayMs: 500,
+	/**
 	 * Twilio WhatsApp sender throughput target (messages per second).
 	 * The WhatsApp Business API enforces sender-level throughput limits.
 	 */
