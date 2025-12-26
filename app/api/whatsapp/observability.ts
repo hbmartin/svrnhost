@@ -1,4 +1,5 @@
 import type { Span } from "@opentelemetry/api";
+import * as Sentry from "@sentry/nextjs";
 import { vercelEnv } from "@/lib/config/server";
 
 export type WhatsAppLogLevel = "info" | "warn" | "error";
@@ -18,6 +19,7 @@ export interface WhatsAppLogFields extends WhatsAppCorrelationIds {
 	fromNumber?: string | undefined;
 	toNumber?: string | undefined;
 	error?: string | undefined;
+	exception?: unknown;
 	details?: Record<string, unknown> | undefined;
 }
 
@@ -48,6 +50,58 @@ export function logWhatsAppEvent(
 					: String(loggingError),
 			originalEvent: fields.event,
 		});
+	}
+
+	if (level === "error") {
+		try {
+			Sentry.withScope((scope) => {
+				scope.setTag("service", "whatsapp");
+				scope.setTag("whatsapp.event", fields.event);
+				if (fields.direction) {
+					scope.setTag("whatsapp.direction", fields.direction);
+				}
+				if (fields.status) {
+					scope.setTag("whatsapp.status", fields.status);
+				}
+				if (fields.messageSid) {
+					scope.setTag("whatsapp.message_sid", fields.messageSid);
+				}
+				if (fields.waId) {
+					scope.setTag("whatsapp.wa_id", fields.waId);
+				}
+				if (fields.chatId) {
+					scope.setTag("whatsapp.chat_id", fields.chatId);
+				}
+				scope.setExtra("nodeEnv", process.env.NODE_ENV);
+				scope.setExtra("vercelEnv", vercelEnv);
+				if (fields.requestUrl) {
+					scope.setExtra("requestUrl", fields.requestUrl);
+				}
+				if (fields.fromNumber) {
+					scope.setExtra("fromNumber", fields.fromNumber);
+				}
+				if (fields.toNumber) {
+					scope.setExtra("toNumber", fields.toNumber);
+				}
+				if (fields.details) {
+					scope.setExtra("details", fields.details);
+				}
+
+				if (fields.exception instanceof Error) {
+					Sentry.captureException(fields.exception);
+				} else {
+					Sentry.captureMessage(fields.error ?? fields.event, "error");
+				}
+			});
+		} catch (sentryError) {
+			console.error("[whatsapp] sentry capture failed", {
+				sentryError:
+					sentryError instanceof Error
+						? sentryError.message
+						: String(sentryError),
+				originalEvent: fields.event,
+			});
+		}
 	}
 }
 

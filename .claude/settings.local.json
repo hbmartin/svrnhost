@@ -12,7 +12,8 @@
       "Bash(cat:*)",
       "Bash(find:*)",
       "Bash(pnpm test:coverage:*)",
-      "Bash(pnpm vitest:*)"
+      "Bash(pnpm vitest:*)",
+      "Bash(xargs cat:*)"
     ]
   }
 }

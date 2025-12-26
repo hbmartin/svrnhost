@@ -117,6 +117,8 @@ export async function processWhatsAppMessage({
 					errorMessage,
 				);
 			}
+		} finally {
+			span.end();
 		}
 	});
 }
@@ -200,6 +202,14 @@ async function receiveTwilioAndGenerateResponseAndSend({
 	await trySendTypingIndicator(client, payload, correlationWithChat);
 
 	const history = convertToUIMessages([...existingMessages, inboundMessage]);
+	logWhatsAppEvent("info", {
+		event: "whatsapp.processing.history_mapped",
+		chatId,
+		requestUrl,
+		details: {
+			count: history.length,
+		},
+	});
 
 	const aiResponse = await generateSafeAIResponse({
 		chatId,
@@ -210,7 +220,7 @@ async function receiveTwilioAndGenerateResponseAndSend({
 	});
 
 	logWhatsAppEvent("info", {
-		event: "response_generated",
+		event: "whatsapp.processing.response_generated",
 		chatId,
 		requestUrl,
 		details: aiResponse,
@@ -451,6 +461,8 @@ async function generateSafeAIResponse(
 				});
 
 				return FALLBACK_RESPONSE;
+			} finally {
+				span.end();
 			}
 		},
 	);
