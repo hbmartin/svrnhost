@@ -51,6 +51,21 @@ import {
 
 const tracer = trace.getTracer("whatsapp-webhook");
 
+function stringifyForSpan(value: unknown, maxLength = 8000): string {
+	try {
+		const serialized = JSON.stringify(value);
+		if (typeof serialized !== "string") {
+			return String(value);
+		}
+
+		return serialized.length > maxLength
+			? `${serialized.slice(0, maxLength)}…`
+			: serialized;
+	} catch {
+		return String(value);
+	}
+}
+
 export async function processWhatsAppMessage({
 	payload,
 	requestUrl,
@@ -375,6 +390,10 @@ async function generateSafeAIResponse(
 				code: SpanStatusCode.ERROR,
 				message: "invalid_response",
 			});
+			span.setAttribute(
+				"whatsapp.llm.response",
+				stringifyForSpan(aiResponse),
+			);
 
 			logWhatsAppEvent("warn", {
 				event: "whatsapp.llm.invalid_response",
@@ -398,6 +417,7 @@ async function generateSafeAIResponse(
 			return FALLBACK_RESPONSE;
 		}
 
+		span.setAttribute("whatsapp.llm.response", stringifyForSpan(aiResponse));
 		span.setStatus({ code: SpanStatusCode.OK });
 		return aiResponse;
 	} catch (error) {
@@ -406,6 +426,16 @@ async function generateSafeAIResponse(
 
 		span.recordException(error as Error);
 		span.setStatus({ code: SpanStatusCode.ERROR, message: errorMessage });
+		const rawResponse =
+			(error as { response?: unknown }).response ??
+			(error as { value?: unknown }).value ??
+			(error as { result?: unknown }).result;
+		if (rawResponse) {
+			span.setAttribute(
+				"whatsapp.llm.response",
+				stringifyForSpan(rawResponse),
+			);
+		}
 
 		logWhatsAppEvent("error", {
 			event: "whatsapp.llm.failed",
