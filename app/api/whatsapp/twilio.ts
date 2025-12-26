@@ -10,7 +10,7 @@ import {
 	setWhatsAppSpanAttributes,
 	type WhatsAppCorrelationIds,
 } from "./observability";
-import type { IncomingMessage, WhatsAppAIResponse } from "./types";
+import type { IncomingMessage } from "./types";
 import { formatWhatsAppNumber } from "./utils";
 
 export type TwilioClient = twilio.Twilio;
@@ -157,7 +157,7 @@ export interface SendMessageParams {
 	client: TwilioClient;
 	to: string;
 	from?: string | undefined;
-	response: WhatsAppAIResponse;
+	response: string;
 	correlation?: WhatsAppCorrelationIds | undefined;
 }
 
@@ -183,6 +183,7 @@ export async function sendWhatsAppMessage({
 
 	const payload: MessageListInstanceCreateOptions = {
 		to: formattedTo,
+		body: response,
 	};
 
 	if (messagingServiceSid) {
@@ -190,18 +191,6 @@ export async function sendWhatsAppMessage({
 	} else if (formattedFrom) {
 		payload.from = formattedFrom;
 	}
-
-	if (response.mediaUrl) {
-		payload.mediaUrl = [response.mediaUrl];
-	}
-
-	if (response.location) {
-		payload.persistentAction = [
-			`geo:${response.location.latitude},${response.location.longitude}|${response.location.label ?? response.location.name}`,
-		];
-	}
-
-	payload.body = response.message;
 
 	return tracer.startActiveSpan("twilio.messages.create", async (span) => {
 		setWhatsAppSpanAttributes(span, {

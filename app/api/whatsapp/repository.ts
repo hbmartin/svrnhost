@@ -13,7 +13,7 @@ import {
 import type { DBMessage, User } from "@/lib/db/schema";
 import type { Attachment } from "@/lib/types";
 import { generateUUID } from "@/lib/utils";
-import type { IncomingMessage, WhatsAppAIResponse } from "./types";
+import type { IncomingMessage } from "./types";
 import { sourceLabel } from "./types";
 import { normalizeWhatsAppNumber } from "./utils";
 
@@ -30,7 +30,7 @@ export interface CreateInboundMessageParams {
 
 export interface CreateOutboundMessageParams {
 	chatId: string;
-	response: WhatsAppAIResponse;
+	response: string;
 	toNumber: string;
 	fromNumber: string | null;
 }
@@ -102,7 +102,7 @@ export async function saveOutboundMessage(
 		id: messageId,
 		chatId: params.chatId,
 		role: "assistant",
-		parts: [{ type: "text", text: params.response.message }],
+		parts: [{ type: "text", text: params.response }],
 		attachments: [],
 		metadata: {
 			source: sourceLabel,
@@ -110,8 +110,6 @@ export async function saveOutboundMessage(
 			sendStatus: "pending" as const,
 			toNumber: params.toNumber,
 			fromNumber: params.fromNumber,
-			location: params.response.location,
-			mediaUrl: params.response.mediaUrl,
 		},
 		createdAt: new Date(),
 	};
@@ -158,7 +156,7 @@ export async function logWebhookOutbound(
 	requestUrl: string,
 	fromNumber: string,
 	toNumber: string,
-	response: WhatsAppAIResponse,
+	response: string,
 	messageSid?: string,
 	status?: string,
 ): Promise<void> {
@@ -170,7 +168,7 @@ export async function logWebhookOutbound(
 		messageSid,
 		fromNumber,
 		toNumber,
-		payload: response,
+		payload: { message: response },
 	});
 }
 
@@ -206,7 +204,7 @@ export async function logTypingFailed(
 export async function logSendFailed(
 	from: string | undefined,
 	to: string,
-	response: WhatsAppAIResponse,
+	response: string,
 	error: string,
 	errorDetails?: Record<string, unknown>,
 ): Promise<void> {
@@ -217,7 +215,9 @@ export async function logSendFailed(
 		fromNumber: from,
 		toNumber: to,
 		error,
-		payload: errorDetails ? { response, errorDetails } : response,
+		payload: errorDetails
+			? { message: response, errorDetails }
+			: { message: response },
 	});
 }
 
