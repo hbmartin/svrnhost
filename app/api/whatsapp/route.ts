@@ -82,11 +82,28 @@ export async function POST(request: Request) {
 
 	const payload = parsedPayload.data;
 	const signature = request.headers.get("x-twilio-signature");
+	const requestUrl = request.url;
 
 	let webhookUrl: string;
 	try {
 		const twilioConfig = getTwilioConfig();
-		webhookUrl = twilioConfig.whatsappWebhookUrl;
+		webhookUrl = requestUrl;
+
+		// If the configured webhook URL differs from the incoming request URL, log it
+		// for visibility while still validating against the actual request URL to
+		// match Twilio's signature calculation.
+		if (twilioConfig.whatsappWebhookUrl !== requestUrl) {
+			logWhatsAppEvent("warn", {
+				event: "whatsapp.inbound.webhook_url_mismatch",
+				direction: "inbound",
+				messageSid: payload.MessageSid,
+				waId: payload.WaId,
+				details: {
+					configuredUrl: twilioConfig.whatsappWebhookUrl,
+					requestUrl,
+				},
+			});
+		}
 	} catch (configError) {
 		const errorMessage =
 			configError instanceof Error ? configError.message : String(configError);
