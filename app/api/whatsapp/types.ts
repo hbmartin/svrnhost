@@ -23,18 +23,4 @@ export const incomingMessageSchema = z
 	})
 	.passthrough();
 
-export const whatsappResponseSchema = z.object({
-	message: z.string(),
-	mediaUrl: z.string().optional(),
-	location: z
-		.object({
-			name: z.string(),
-			latitude: z.number(),
-			longitude: z.number(),
-			label: z.string().optional(),
-		})
-		.optional(),
-});
-
 export type IncomingMessage = z.infer<typeof incomingMessageSchema>;
-export type WhatsAppAIResponse = z.infer<typeof whatsappResponseSchema>;

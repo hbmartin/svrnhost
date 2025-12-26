@@ -7,7 +7,6 @@
  * - Fallback responses for invalid/empty AI output
  */
 
-import type { WhatsAppAIResponse } from "@/app/api/whatsapp/types";
 import { LLM_LIMITS } from "@/lib/config/limits";
 
 /**
@@ -28,10 +27,8 @@ export const LLM_CONFIG = {
  * Professional fallback response when AI fails or returns invalid output.
  * This is sent to the user when we cannot generate a proper response.
  */
-export const FALLBACK_RESPONSE: WhatsAppAIResponse = {
-	message:
-		"We're experiencing technical difficulties. Please try again shortly.",
-};
+export const FALLBACK_RESPONSE =
+	"We're experiencing technical difficulties. Please try again shortly.";
 
 /**
  * Validate that an AI response is usable for WhatsApp.
@@ -41,14 +38,14 @@ export const FALLBACK_RESPONSE: WhatsAppAIResponse = {
  *
  * @returns true if the response is valid and can be sent
  */
-export function isValidWhatsAppResponse(response: WhatsAppAIResponse): boolean {
+export function isValidWhatsAppResponse(response: string): boolean {
 	// Must have a message
-	if (!response.message) {
+	if (!response) {
 		return false;
 	}
 
 	// Message must not be empty or whitespace-only
-	if (response.message.trim().length < LLM_CONFIG.minResponseLength) {
+	if (response.trim().length < LLM_CONFIG.minResponseLength) {
 		return false;
 	}
 

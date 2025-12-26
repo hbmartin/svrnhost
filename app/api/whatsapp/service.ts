@@ -1,5 +1,5 @@
 import { SpanStatusCode, trace } from "@opentelemetry/api";
-import { convertToModelMessages, generateObject } from "ai";
+import { convertToModelMessages, generateText } from "ai";
 import { myProvider } from "@/lib/ai/providers";
 import {
 	classifyAIError,
@@ -37,11 +37,7 @@ import {
 	sendWhatsAppMessageWithRetry,
 	type TwilioClient,
 } from "./twilio";
-import {
-	type IncomingMessage,
-	type WhatsAppAIResponse,
-	whatsappResponseSchema,
-} from "./types";
+import type { IncomingMessage } from "./types";
 import {
 	buildSystemPrompt,
 	extractAttachments,
@@ -219,13 +215,6 @@ async function receiveTwilioAndGenerateResponseAndSend({
 		requestUrl,
 	});
 
-	logWhatsAppEvent("info", {
-		event: "whatsapp.processing.response_generated",
-		chatId,
-		requestUrl,
-		details: aiResponse,
-	});
-
 	const normalizedWhatsappFrom = whatsappFrom
 		? normalizeWhatsAppNumber(whatsappFrom)
 		: null;
@@ -297,7 +286,7 @@ async function trySendWhatsAppMessageWithRetry(params: {
 	client: TwilioClient;
 	to: string;
 	from?: string | undefined;
-	response: WhatsAppAIResponse;
+	response: string;
 	correlation: WhatsAppCorrelationIds;
 }): Promise<{ sid: string; status: string } | null> {
 	try {
@@ -354,7 +343,7 @@ interface GenerateSafeAIResponseParams {
  */
 async function generateSafeAIResponse(
 	params: GenerateSafeAIResponseParams,
-): Promise<WhatsAppAIResponse> {
+): Promise<string> {
 	const { chatId, inboundMessageId, history, payload, requestUrl } = params;
 	const model = myProvider.languageModel("chat-model");
 
@@ -370,17 +359,16 @@ async function generateSafeAIResponse(
 				requestUrl,
 			});
 
-			span.setAttribute("llm.operation", "generateObject");
+			span.setAttribute("llm.operation", "generateText");
 			if (model.modelId) {
 				span.setAttribute("llm.model_id", model.modelId);
 			}
 
 			try {
-				const { object: aiResponse } = await generateObject({
+				const aiGeneratedFullResponse = await generateText({
 					model,
 					system: buildSystemPrompt(payload),
 					messages: await convertToModelMessages(history),
-					schema: whatsappResponseSchema,
 					maxRetries: LLM_CONFIG.maxRetries,
 					abortSignal: AbortSignal.timeout(LLM_CONFIG.timeoutMs),
 					experimental_telemetry: {
@@ -389,18 +377,16 @@ async function generateSafeAIResponse(
 					},
 				});
 
+				logWhatsAppEvent("info", {
+					event: "whatsapp.processing.response_generated",
+					chatId,
+					requestUrl,
+					// details: aiGeneratedFullResponse,
+				});
+				const aiResponse = aiGeneratedFullResponse.text;
+
 				// Log the full LLM response to the trace
-				span.setAttribute("llm.response", JSON.stringify(aiResponse));
-				span.setAttribute("llm.response.message", aiResponse.message);
-				if (aiResponse.mediaUrl) {
-					span.setAttribute("llm.response.media_url", aiResponse.mediaUrl);
-				}
-				if (aiResponse.location) {
-					span.setAttribute(
-						"llm.response.location",
-						JSON.stringify(aiResponse.location),
-					);
-				}
+				// span.setAttribute("llm.response", JSON.stringify(aiResponse));
 
 				// Validate the response
 				if (!isValidWhatsAppResponse(aiResponse)) {
@@ -416,16 +402,14 @@ async function generateSafeAIResponse(
 						waId: payload.WaId,
 						chatId,
 						details: {
-							messageLength: aiResponse.message?.length ?? 0,
+							messageLength: aiResponse?.length ?? 0,
 						},
 					});
 
 					await logAIEscalation({
 						chatId,
 						messageId: inboundMessageId,
-						failureType: aiResponse.message
-							? "invalid_response"
-							: "empty_response",
+						failureType: aiResponse ? "invalid_response" : "empty_response",
 						error: "AI response failed validation",
 						requestUrl,
 					});
