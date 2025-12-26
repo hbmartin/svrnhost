@@ -278,18 +278,51 @@ function isTwilioErrorRetryable(error: unknown): boolean {
  */
 const WHATSAPP_SENDER_RATE_LIMIT_KEY = "whatsapp-sender";
 
+function sleep(ms: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 /**
- * Send a WhatsApp message with rate limiting and retry logic.
- *
- * - Rate limiting: Sender-level token bucket to respect Twilio's 80 MPS limit per WhatsApp sender
- * - Retry: Exponential backoff for transient failures
- * - Error classification: Distinguishes retryable vs permanent failures
- *
- * @throws Error if all retries exhausted or permanent failure encountered
+ * Chunk a message by newlines to fit within Twilio's max message length.
+ * Tries to split on newline boundaries; if a single line exceeds the limit,
+ * it will be included as its own chunk (Twilio will truncate if needed).
  */
-export async function sendWhatsAppMessageWithRetry(
+export function chunkMessageByNewlines(
+	message: string,
+	maxLength: number,
+): string[] {
+	if (message.length <= maxLength) {
+		return [message];
+	}
+
+	const lines = message.split("\n");
+	const chunks: string[] = [];
+	let currentChunk = "";
+
+	for (const line of lines) {
+		const lineWithNewline = currentChunk ? `\n${line}` : line;
+
+		if (currentChunk.length + lineWithNewline.length <= maxLength) {
+			currentChunk += lineWithNewline;
+		} else {
+			if (currentChunk) {
+				chunks.push(currentChunk);
+			}
+			// If a single line exceeds maxLength, include it as its own chunk
+			currentChunk = line;
+		}
+	}
+
+	if (currentChunk) {
+		chunks.push(currentChunk);
+	}
+
+	return chunks;
+}
+
+async function sendSingleMessageWithRateLimitAndRetry(
 	params: SendMessageParams,
-): Promise<SendMessageResult> {
+): Promise<{ result: SendMessageResult; attempts: number }> {
 	const { to, correlation } = params;
 
 	// Acquire sender-level rate limit token (waits up to 5 seconds)
@@ -314,26 +347,83 @@ export async function sendWhatsAppMessageWithRetry(
 	}
 
 	// Send with retry
-	const { result, attempts } = await withRetry(
-		() => sendWhatsAppMessage(params),
-		{
-			maxAttempts: WHATSAPP_LIMITS.retry.maxAttempts,
-			baseDelayMs: WHATSAPP_LIMITS.retry.baseDelayMs,
-			maxDelayMs: WHATSAPP_LIMITS.retry.maxDelayMs,
-			context: "twilio-send",
-			shouldRetry: (error) => isTwilioErrorRetryable(error),
-		},
+	return withRetry(() => sendWhatsAppMessage(params), {
+		maxAttempts: WHATSAPP_LIMITS.retry.maxAttempts,
+		baseDelayMs: WHATSAPP_LIMITS.retry.baseDelayMs,
+		maxDelayMs: WHATSAPP_LIMITS.retry.maxDelayMs,
+		context: "twilio-send",
+		shouldRetry: (error) => isTwilioErrorRetryable(error),
+	});
+}
+
+/**
+ * Send a WhatsApp message with rate limiting, retry logic, and chunking for long messages.
+ *
+ * - Chunking: Messages over 1600 chars are split by newlines and sent as multiple messages
+ * - Rate limiting: Sender-level token bucket to respect Twilio's 80 MPS limit per WhatsApp sender
+ * - Retry: Exponential backoff for transient failures
+ * - Error classification: Distinguishes retryable vs permanent failures
+ *
+ * @returns The result from the last chunk sent (or the only message if no chunking needed)
+ * @throws Error if all retries exhausted or permanent failure encountered
+ */
+export async function sendWhatsAppMessageWithRetry(
+	params: SendMessageParams,
+): Promise<SendMessageResult> {
+	const { to, correlation, response } = params;
+
+	const chunks = chunkMessageByNewlines(
+		response,
+		WHATSAPP_LIMITS.maxMessageLength,
 	);
 
-	if (attempts > 1) {
-		logWhatsAppEvent("warn", {
-			event: "whatsapp.outbound.send_retried",
+	if (chunks.length > 1) {
+		logWhatsAppEvent("info", {
+			event: "whatsapp.outbound.chunking",
 			direction: "outbound",
 			...correlation,
 			toNumber: to,
-			details: { attempts, outboundMessageSid: result.sid },
+			details: {
+				originalLength: response.length,
+				chunkCount: chunks.length,
+			},
 		});
 	}
 
-	return result;
+	let lastResult: SendMessageResult | null = null;
+
+	for (let i = 0; i < chunks.length; i++) {
+		// Add delay between chunks (not before the first one)
+		if (i > 0) {
+			await sleep(WHATSAPP_LIMITS.chunkDelayMs);
+		}
+
+		const chunkParams: SendMessageParams = {
+			...params,
+			response: chunks[i] as string,
+		};
+
+		const { result, attempts } = await sendSingleMessageWithRateLimitAndRetry(
+			chunkParams,
+		);
+
+		if (attempts > 1) {
+			logWhatsAppEvent("warn", {
+				event: "whatsapp.outbound.send_retried",
+				direction: "outbound",
+				...correlation,
+				toNumber: to,
+				details: {
+					attempts,
+					outboundMessageSid: result.sid,
+					chunkIndex: chunks.length > 1 ? i + 1 : undefined,
+					totalChunks: chunks.length > 1 ? chunks.length : undefined,
+				},
+			});
+		}
+
+		lastResult = result;
+	}
+
+	return lastResult!;
 }
