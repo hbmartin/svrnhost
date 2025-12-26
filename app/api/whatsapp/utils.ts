@@ -100,7 +100,5 @@ export function extractAttachments(payload: IncomingMessage): Attachment[] {
 export function buildSystemPrompt(payload: IncomingMessage) {
 	return `${svrnHostSystemPrompt}
 
-You are chatting with a WhatsApp user. Keep replies concise, single-message friendly, and formatted for WhatsApp. Always return a JSON object that matches the provided schema with a "message" string, optional mediaUrl, and optional location data. Do not include Markdown fences or additional prose.
-
 Profile Name: ${payload.ProfileName ?? "unknown"}`;
 }

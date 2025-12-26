@@ -13,7 +13,6 @@ import {
 import type { DBMessage, User } from "@/lib/db/schema";
 import type { Attachment } from "@/lib/types";
 import { generateUUID } from "@/lib/utils";
-import { logWhatsAppEvent } from "./observability";
 import type { IncomingMessage, WhatsAppAIResponse } from "./types";
 import { sourceLabel } from "./types";
 import { normalizeWhatsAppNumber } from "./utils";
@@ -295,17 +294,6 @@ export async function logAIEscalation(params: {
 			messageId: params.messageId,
 			failureType: params.failureType,
 			timestamp: new Date().toISOString(),
-		},
-	});
-
-	logWhatsAppEvent("error", {
-		event: "whatsapp.ai.escalation",
-		direction: "internal",
-		chatId: params.chatId,
-		error: params.error,
-		details: {
-			failureType: params.failureType,
-			messageId: params.messageId,
 		},
 	});
 }

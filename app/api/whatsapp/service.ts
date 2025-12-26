@@ -75,7 +75,10 @@ export async function processWhatsAppMessage({
 				"processing",
 				requestUrl,
 			);
-			chatId = await handleWhatsAppMessage({ payload, requestUrl });
+			chatId = await receiveTwilioAndGenerateResponseAndSend({
+				payload,
+				requestUrl,
+			});
 			if (chatId) {
 				span.setAttribute("whatsapp.chat_id", chatId);
 			}
@@ -120,7 +123,7 @@ export async function processWhatsAppMessage({
 	});
 }
 
-async function handleWhatsAppMessage({
+async function receiveTwilioAndGenerateResponseAndSend({
 	payload,
 	requestUrl,
 }: {
@@ -206,6 +209,13 @@ async function handleWhatsAppMessage({
 		history,
 		payload,
 		requestUrl,
+	});
+
+	logWhatsAppEvent("info", {
+		event: "response_generated",
+		chatId,
+		requestUrl,
+		details: aiResponse,
 	});
 
 	const normalizedWhatsappFrom = whatsappFrom
@@ -339,107 +349,113 @@ async function generateSafeAIResponse(
 ): Promise<WhatsAppAIResponse> {
 	const { chatId, inboundMessageId, history, payload, requestUrl } = params;
 	const model = myProvider.languageModel("chat-model");
-	const span = tracer.startSpan("llm.generate_whatsapp_response");
 
-	setWhatsAppSpanAttributes(span, {
-		event: "whatsapp.llm.generate",
-		direction: "internal",
-		messageSid: payload.MessageSid,
-		waId: payload.WaId,
-		chatId,
-		requestUrl,
-	});
-
-	span.setAttribute("llm.operation", "generateObject");
-	if (model.modelId) {
-		span.setAttribute("llm.model_id", model.modelId);
-	}
-
-	try {
-		const { object: aiResponse } = await generateObject({
-			model,
-			system: buildSystemPrompt(payload),
-			messages: await convertToModelMessages(history),
-			schema: whatsappResponseSchema,
-			maxRetries: LLM_CONFIG.maxRetries,
-			abortSignal: AbortSignal.timeout(LLM_CONFIG.timeoutMs),
-			experimental_telemetry: {
-				isEnabled: true,
-				functionId: "generate-whatsapp-response",
-			},
-		});
-
-		// Log the full LLM response to the trace
-		span.setAttribute("llm.response", JSON.stringify(aiResponse));
-		span.setAttribute("llm.response.message", aiResponse.message);
-		if (aiResponse.mediaUrl) {
-			span.setAttribute("llm.response.media_url", aiResponse.mediaUrl);
-		}
-		if (aiResponse.location) {
-			span.setAttribute(
-				"llm.response.location",
-				JSON.stringify(aiResponse.location),
-			);
-		}
-
-		// Validate the response
-		if (!isValidWhatsAppResponse(aiResponse)) {
-			span.setStatus({
-				code: SpanStatusCode.ERROR,
-				message: "invalid_response",
-			});
-
-			logWhatsAppEvent("warn", {
-				event: "whatsapp.llm.invalid_response",
+	return tracer.startActiveSpan(
+		"llm.generate_whatsapp_response",
+		async (span) => {
+			setWhatsAppSpanAttributes(span, {
+				event: "whatsapp.llm.generate",
 				direction: "internal",
 				messageSid: payload.MessageSid,
 				waId: payload.WaId,
 				chatId,
-				details: {
-					messageLength: aiResponse.message?.length ?? 0,
-				},
-			});
-
-			await logAIEscalation({
-				chatId,
-				messageId: inboundMessageId,
-				failureType: aiResponse.message ? "invalid_response" : "empty_response",
-				error: "AI response failed validation",
 				requestUrl,
 			});
 
-			return FALLBACK_RESPONSE;
-		}
+			span.setAttribute("llm.operation", "generateObject");
+			if (model.modelId) {
+				span.setAttribute("llm.model_id", model.modelId);
+			}
 
-		span.setStatus({ code: SpanStatusCode.OK });
-		return aiResponse;
-	} catch (error) {
-		const failureType = classifyAIError(error);
-		const errorMessage = getSafeErrorMessage(error);
+			try {
+				const { object: aiResponse } = await generateObject({
+					model,
+					system: buildSystemPrompt(payload),
+					messages: await convertToModelMessages(history),
+					schema: whatsappResponseSchema,
+					maxRetries: LLM_CONFIG.maxRetries,
+					abortSignal: AbortSignal.timeout(LLM_CONFIG.timeoutMs),
+					experimental_telemetry: {
+						isEnabled: true,
+						functionId: "generate-whatsapp-response",
+					},
+				});
 
-		span.recordException(error as Error);
-		span.setStatus({ code: SpanStatusCode.ERROR, message: errorMessage });
+				// Log the full LLM response to the trace
+				span.setAttribute("llm.response", JSON.stringify(aiResponse));
+				span.setAttribute("llm.response.message", aiResponse.message);
+				if (aiResponse.mediaUrl) {
+					span.setAttribute("llm.response.media_url", aiResponse.mediaUrl);
+				}
+				if (aiResponse.location) {
+					span.setAttribute(
+						"llm.response.location",
+						JSON.stringify(aiResponse.location),
+					);
+				}
 
-		logWhatsAppEvent("error", {
-			event: "whatsapp.llm.failed",
-			direction: "internal",
-			messageSid: payload.MessageSid,
-			waId: payload.WaId,
-			chatId,
-			error: errorMessage,
-			details: { failureType },
-		});
+				// Validate the response
+				if (!isValidWhatsAppResponse(aiResponse)) {
+					span.setStatus({
+						code: SpanStatusCode.ERROR,
+						message: "invalid_response",
+					});
 
-		await logAIEscalation({
-			chatId,
-			messageId: inboundMessageId,
-			failureType,
-			error: errorMessage,
-			requestUrl,
-		});
+					logWhatsAppEvent("warn", {
+						event: "whatsapp.llm.invalid_response",
+						direction: "internal",
+						messageSid: payload.MessageSid,
+						waId: payload.WaId,
+						chatId,
+						details: {
+							messageLength: aiResponse.message?.length ?? 0,
+						},
+					});
 
-		return FALLBACK_RESPONSE;
-	} finally {
-		span.end();
-	}
+					await logAIEscalation({
+						chatId,
+						messageId: inboundMessageId,
+						failureType: aiResponse.message
+							? "invalid_response"
+							: "empty_response",
+						error: "AI response failed validation",
+						requestUrl,
+					});
+
+					return FALLBACK_RESPONSE;
+				}
+
+				span.setStatus({ code: SpanStatusCode.OK });
+				return aiResponse;
+			} catch (error) {
+				const failureType = classifyAIError(error);
+				const errorMessage = getSafeErrorMessage(error);
+
+				span.recordException(error as Error);
+				span.setStatus({ code: SpanStatusCode.ERROR, message: errorMessage });
+
+				logWhatsAppEvent("error", {
+					event: "whatsapp.llm.failed",
+					direction: "internal",
+					messageSid: payload.MessageSid,
+					waId: payload.WaId,
+					chatId,
+					error: errorMessage,
+					details: { failureType },
+				});
+
+				await logAIEscalation({
+					chatId,
+					messageId: inboundMessageId,
+					failureType,
+					error: errorMessage,
+					requestUrl,
+				});
+
+				return FALLBACK_RESPONSE;
+			} finally {
+				span.end();
+			}
+		},
+	);
 }
