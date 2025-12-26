@@ -117,8 +117,6 @@ export async function processWhatsAppMessage({
 					errorMessage,
 				);
 			}
-		} finally {
-			span.end();
 		}
 	});
 }
@@ -453,8 +451,6 @@ async function generateSafeAIResponse(
 				});
 
 				return FALLBACK_RESPONSE;
-			} finally {
-				span.end();
 			}
 		},
 	);

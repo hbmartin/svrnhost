@@ -183,13 +183,17 @@ describe("/api/chat POST", () => {
 		);
 
 		expect(response.status).toBe(200);
-		expect(mocks.getMessagesByChatId).toHaveBeenCalledWith({ id: validBody.id });
+		expect(mocks.getMessagesByChatId).toHaveBeenCalledWith({
+			id: validBody.id,
+		});
 		expect(mocks.saveChat).not.toHaveBeenCalled();
 	});
 
 	it("returns 503 for unhandled errors", async () => {
 		mocks.auth.mockResolvedValue({ user: { id: "user-1", type: "regular" } });
-		mocks.getMessageCountByUserId.mockRejectedValue(new Error("Database error"));
+		mocks.getMessageCountByUserId.mockRejectedValue(
+			new Error("Database error"),
+		);
 
 		const response = await POST(
 			new Request("http://localhost/api/chat", {
