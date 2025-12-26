@@ -28,7 +28,7 @@ export const whatsappResponseSchema = z.object({
 	buttons: z
 		.array(
 			z.object({
-				id: z.string().optional(),
+				id: z.string(),
 				label: z.string(),
 				url: z.string().optional(),
 			}),

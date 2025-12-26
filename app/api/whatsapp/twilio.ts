@@ -209,7 +209,7 @@ export async function sendWhatsAppMessage({
 			buttons: response.buttons.map((button, index) => ({
 				id: button.id ?? `option-${index + 1}`,
 				label: button.label,
-				url: button.url,
+				...(button.url ? { url: button.url } : {}),
 			})),
 		});
 	} else {
