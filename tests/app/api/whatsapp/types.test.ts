@@ -3,33 +3,39 @@ import { describe, expect, it } from "vitest";
 import { whatsappResponseSchema } from "@/app/api/whatsapp/types";
 
 describe("whatsappResponseSchema", () => {
-	it("accepts buttons with required id and label", () => {
+	it("accepts message-only response", () => {
 		const result = whatsappResponseSchema.safeParse({
 			message: "Hello",
-			buttons: [
-				{ id: "option-1", label: "Yes", url: null },
-				{ id: "option-2", label: "No", url: null },
-			],
 		});
 
 		expect(result.success).toBe(true);
 	});
 
-	it("accepts buttons with url when provided", () => {
+	it("accepts response with mediaUrl", () => {
 		const result = whatsappResponseSchema.safeParse({
-			message: "Learn more",
-			buttons: [
-				{ id: "option-1", label: "Docs", url: "https://example.com" },
-			],
+			message: "Check this out",
+			mediaUrl: "https://example.com/image.png",
 		});
 
 		expect(result.success).toBe(true);
 	});
 
-	it("rejects buttons missing id", () => {
+	it("accepts response with location", () => {
 		const result = whatsappResponseSchema.safeParse({
-			message: "Hi",
-			buttons: [{ label: "Yes", url: null }],
+			message: "Meet here",
+			location: {
+				name: "Coffee Shop",
+				latitude: 37.7749,
+				longitude: -122.4194,
+			},
+		});
+
+		expect(result.success).toBe(true);
+	});
+
+	it("rejects response missing message", () => {
+		const result = whatsappResponseSchema.safeParse({
+			mediaUrl: "https://example.com/image.png",
 		});
 
 		expect(result.success).toBe(false);

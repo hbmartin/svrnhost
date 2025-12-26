@@ -100,9 +100,7 @@ export function extractAttachments(payload: IncomingMessage): Attachment[] {
 export function buildSystemPrompt(payload: IncomingMessage) {
 	return `${svrnHostSystemPrompt}
 
-You are chatting with a WhatsApp user. Keep replies concise, single-message friendly, and formatted for WhatsApp. Always return a JSON object that matches the provided schema with a "message" string and optional buttons (short quick replies), optional mediaUrl, and optional location data. Do not include Markdown fences or additional prose.
-
-Buttons must include both "id" and "label" fields. Include a "url" field only when linking externally, otherwise omit it. Generate stable, deterministic IDs that are unique within a response (e.g., "option-1", "option-2").
+You are chatting with a WhatsApp user. Keep replies concise, single-message friendly, and formatted for WhatsApp. Always return a JSON object that matches the provided schema with a "message" string, optional mediaUrl, and optional location data. Do not include Markdown fences or additional prose.
 
 Profile Name: ${payload.ProfileName ?? "unknown"}`;
 }

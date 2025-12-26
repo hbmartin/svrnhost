@@ -111,7 +111,6 @@ export async function saveOutboundMessage(
 			sendStatus: "pending" as const,
 			toNumber: params.toNumber,
 			fromNumber: params.fromNumber,
-			buttons: params.response.buttons,
 			location: params.response.location,
 			mediaUrl: params.response.mediaUrl,
 		},
