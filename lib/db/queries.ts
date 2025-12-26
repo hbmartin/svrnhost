@@ -23,6 +23,10 @@ import {
 	type DBMessage,
 	document,
 	message,
+	type MessageTemplate,
+	messageTemplate,
+	type ScheduledMessage,
+	scheduledMessage,
 	type Suggestion,
 	stream,
 	suggestion,
@@ -795,6 +799,315 @@ export async function getFailedOutboundMessages({
 		throw new ChatSDKError(
 			"bad_request:database",
 			"Failed to get failed outbound messages",
+		);
+	}
+}
+
+// ============================================================================
+// Message Template Queries
+// ============================================================================
+
+export async function getAllTemplates(options?: {
+	includeDeleted?: boolean;
+	approvalStatus?: string;
+}): Promise<MessageTemplate[]> {
+	try {
+		const conditions = [];
+
+		if (!options?.includeDeleted) {
+			conditions.push(eq(messageTemplate.isDeleted, false));
+		}
+
+		if (options?.approvalStatus) {
+			conditions.push(
+				eq(messageTemplate.whatsappApprovalStatus, options.approvalStatus),
+			);
+		}
+
+		return await db
+			.select()
+			.from(messageTemplate)
+			.where(conditions.length > 0 ? and(...conditions) : undefined)
+			.orderBy(desc(messageTemplate.createdAt));
+	} catch (_error) {
+		throw new ChatSDKError(
+			"bad_request:database",
+			"Failed to get all templates",
+		);
+	}
+}
+
+export async function getTemplateByContentSid(
+	contentSid: string,
+): Promise<MessageTemplate | null> {
+	try {
+		const [template] = await db
+			.select()
+			.from(messageTemplate)
+			.where(eq(messageTemplate.contentSid, contentSid))
+			.limit(1);
+
+		return template ?? null;
+	} catch (_error) {
+		throw new ChatSDKError(
+			"bad_request:database",
+			"Failed to get template by content SID",
+		);
+	}
+}
+
+export async function getTemplateById(
+	id: string,
+): Promise<MessageTemplate | null> {
+	try {
+		const [template] = await db
+			.select()
+			.from(messageTemplate)
+			.where(eq(messageTemplate.id, id))
+			.limit(1);
+
+		return template ?? null;
+	} catch (_error) {
+		throw new ChatSDKError(
+			"bad_request:database",
+			"Failed to get template by ID",
+		);
+	}
+}
+
+export async function upsertTemplate(
+	template: Partial<MessageTemplate> & { contentSid: string },
+): Promise<MessageTemplate> {
+	try {
+		const now = new Date();
+		const [result] = await db
+			.insert(messageTemplate)
+			.values({
+				contentSid: template.contentSid,
+				friendlyName: template.friendlyName ?? "Unnamed Template",
+				language: template.language ?? "en",
+				variables: template.variables ?? null,
+				types: template.types ?? {},
+				whatsappApprovalStatus: template.whatsappApprovalStatus ?? "unsubmitted",
+				whatsappTemplateName: template.whatsappTemplateName ?? null,
+				whatsappCategory: template.whatsappCategory ?? null,
+				rejectionReason: template.rejectionReason ?? null,
+				twilioCreatedAt: template.twilioCreatedAt ?? null,
+				twilioUpdatedAt: template.twilioUpdatedAt ?? null,
+				createdAt: now,
+				updatedAt: now,
+				lastSyncedAt: now,
+				isDeleted: false,
+			})
+			.onConflictDoUpdate({
+				target: messageTemplate.contentSid,
+				set: {
+					friendlyName: template.friendlyName,
+					language: template.language,
+					variables: template.variables,
+					types: template.types,
+					whatsappApprovalStatus: template.whatsappApprovalStatus,
+					whatsappTemplateName: template.whatsappTemplateName,
+					whatsappCategory: template.whatsappCategory,
+					rejectionReason: template.rejectionReason,
+					twilioCreatedAt: template.twilioCreatedAt,
+					twilioUpdatedAt: template.twilioUpdatedAt,
+					updatedAt: now,
+					lastSyncedAt: now,
+					isDeleted: false,
+				},
+			})
+			.returning();
+
+		if (!result) {
+			throw new Error("Upsert returned no result");
+		}
+
+		return result;
+	} catch (_error) {
+		throw new ChatSDKError("bad_request:database", "Failed to upsert template");
+	}
+}
+
+export async function softDeleteTemplate(contentSid: string): Promise<void> {
+	try {
+		await db
+			.update(messageTemplate)
+			.set({ isDeleted: true, updatedAt: new Date() })
+			.where(eq(messageTemplate.contentSid, contentSid));
+	} catch (_error) {
+		throw new ChatSDKError(
+			"bad_request:database",
+			"Failed to soft delete template",
+		);
+	}
+}
+
+export async function getApprovedTemplates(): Promise<MessageTemplate[]> {
+	return getAllTemplates({ approvalStatus: "approved" });
+}
+
+// ============================================================================
+// Scheduled Message Queries
+// ============================================================================
+
+export async function createScheduledMessage(params: {
+	templateId?: string | null;
+	contentSid?: string | null;
+	contentVariables?: Record<string, string> | null;
+	recipients: string[];
+	scheduledAt: Date;
+	createdBy?: string | null;
+}): Promise<ScheduledMessage> {
+	try {
+		const [result] = await db
+			.insert(scheduledMessage)
+			.values({
+				templateId: params.templateId ?? null,
+				contentSid: params.contentSid ?? null,
+				contentVariables: params.contentVariables ?? null,
+				recipients: params.recipients,
+				scheduledAt: params.scheduledAt,
+				status: "pending",
+				createdAt: new Date(),
+				createdBy: params.createdBy ?? null,
+			})
+			.returning();
+
+		if (!result) {
+			throw new Error("Insert returned no result");
+		}
+
+		return result;
+	} catch (_error) {
+		throw new ChatSDKError(
+			"bad_request:database",
+			"Failed to create scheduled message",
+		);
+	}
+}
+
+export async function getPendingScheduledMessages(
+	before: Date,
+): Promise<ScheduledMessage[]> {
+	try {
+		return await db
+			.select()
+			.from(scheduledMessage)
+			.where(
+				and(
+					eq(scheduledMessage.status, "pending"),
+					lt(scheduledMessage.scheduledAt, before),
+				),
+			)
+			.orderBy(asc(scheduledMessage.scheduledAt));
+	} catch (_error) {
+		throw new ChatSDKError(
+			"bad_request:database",
+			"Failed to get pending scheduled messages",
+		);
+	}
+}
+
+export async function updateScheduledMessageStatus(
+	id: string,
+	status: string,
+	results?: {
+		sent: { phone: string; messageSid: string }[];
+		failed: { phone: string; error: string }[];
+	} | null,
+	error?: string | null,
+): Promise<void> {
+	try {
+		const updates: Partial<typeof scheduledMessage.$inferInsert> = {
+			status,
+			processedAt: new Date(),
+		};
+
+		if (results !== undefined) {
+			updates.results = results;
+		}
+
+		if (error !== undefined) {
+			updates.error = error;
+		}
+
+		await db
+			.update(scheduledMessage)
+			.set(updates)
+			.where(eq(scheduledMessage.id, id));
+	} catch (_error) {
+		throw new ChatSDKError(
+			"bad_request:database",
+			"Failed to update scheduled message status",
+		);
+	}
+}
+
+export async function cancelScheduledMessage(id: string): Promise<void> {
+	try {
+		await db
+			.update(scheduledMessage)
+			.set({ status: "cancelled", processedAt: new Date() })
+			.where(
+				and(
+					eq(scheduledMessage.id, id),
+					eq(scheduledMessage.status, "pending"),
+				),
+			);
+	} catch (_error) {
+		throw new ChatSDKError(
+			"bad_request:database",
+			"Failed to cancel scheduled message",
+		);
+	}
+}
+
+export async function getScheduledMessages(options?: {
+	status?: string;
+	limit?: number;
+}): Promise<ScheduledMessage[]> {
+	try {
+		const conditions = [];
+
+		if (options?.status) {
+			conditions.push(eq(scheduledMessage.status, options.status));
+		}
+
+		let query = db
+			.select()
+			.from(scheduledMessage)
+			.where(conditions.length > 0 ? and(...conditions) : undefined)
+			.orderBy(desc(scheduledMessage.createdAt));
+
+		if (options?.limit) {
+			query = query.limit(options.limit) as typeof query;
+		}
+
+		return await query;
+	} catch (_error) {
+		throw new ChatSDKError(
+			"bad_request:database",
+			"Failed to get scheduled messages",
+		);
+	}
+}
+
+export async function getScheduledMessageById(
+	id: string,
+): Promise<ScheduledMessage | null> {
+	try {
+		const [result] = await db
+			.select()
+			.from(scheduledMessage)
+			.where(eq(scheduledMessage.id, id))
+			.limit(1);
+
+		return result ?? null;
+	} catch (_error) {
+		throw new ChatSDKError(
+			"bad_request:database",
+			"Failed to get scheduled message by ID",
 		);
 	}
 }
