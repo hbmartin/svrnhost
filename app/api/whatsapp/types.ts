@@ -27,11 +27,17 @@ export const whatsappResponseSchema = z.object({
 	message: z.string(),
 	buttons: z
 		.array(
-			z.object({
-				id: z.string().optional(),
-				label: z.string(),
-				url: z.string().optional(),
-			}),
+			z.union([
+				z.object({
+					id: z.string(),
+					label: z.string(),
+				}),
+				z.object({
+					id: z.string(),
+					label: z.string(),
+					url: z.string(),
+				}),
+			]),
 		)
 		.optional(),
 	mediaUrl: z.string().optional(),
