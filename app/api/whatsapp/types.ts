@@ -30,7 +30,7 @@ export const whatsappResponseSchema = z.object({
 			z.object({
 				id: z.string(),
 				label: z.string(),
-				url: z.string().optional(),
+				url: z.string().nullable(),
 			}),
 		)
 		.optional(),

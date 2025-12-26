@@ -7,8 +7,8 @@ describe("whatsappResponseSchema", () => {
 		const result = whatsappResponseSchema.safeParse({
 			message: "Hello",
 			buttons: [
-				{ id: "option-1", label: "Yes" },
-				{ id: "option-2", label: "No" },
+				{ id: "option-1", label: "Yes", url: null },
+				{ id: "option-2", label: "No", url: null },
 			],
 		});
 
@@ -29,7 +29,7 @@ describe("whatsappResponseSchema", () => {
 	it("rejects buttons missing id", () => {
 		const result = whatsappResponseSchema.safeParse({
 			message: "Hi",
-			buttons: [{ label: "Yes" }],
+			buttons: [{ label: "Yes", url: null }],
 		});
 
 		expect(result.success).toBe(false);
