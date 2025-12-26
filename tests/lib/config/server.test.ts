@@ -104,7 +104,9 @@ describe("lib/config/server", () => {
 
 			const { getPostgresUrl } = await import("@/lib/config/server");
 
-			expect(() => getPostgresUrl()).toThrow("Missing required database configuration");
+			expect(() => getPostgresUrl()).toThrow(
+				"Missing required database configuration",
+			);
 		});
 	});
 
@@ -116,13 +118,16 @@ describe("lib/config/server", () => {
 
 			const { getTwilioConfig } = await import("@/lib/config/server");
 
-			expect(() => getTwilioConfig()).toThrow("Missing required Twilio configuration");
+			expect(() => getTwilioConfig()).toThrow(
+				"Missing required Twilio configuration",
+			);
 		});
 
 		it("returns config when all required vars are set", async () => {
 			process.env["TWILIO_ACCOUNT_SID"] = "AC123";
 			process.env["TWILIO_AUTH_TOKEN"] = "token123";
-			process.env["TWILIO_WHATSAPP_WEBHOOK_URL"] = "https://example.com/webhook";
+			process.env["TWILIO_WHATSAPP_WEBHOOK_URL"] =
+				"https://example.com/webhook";
 			process.env["TWILIO_MESSAGING_SERVICE_SID"] = "MG123";
 
 			const { getTwilioConfig } = await import("@/lib/config/server");
@@ -138,7 +143,8 @@ describe("lib/config/server", () => {
 		it("returns cached config on subsequent calls", async () => {
 			process.env["TWILIO_ACCOUNT_SID"] = "AC123";
 			process.env["TWILIO_AUTH_TOKEN"] = "token123";
-			process.env["TWILIO_WHATSAPP_WEBHOOK_URL"] = "https://example.com/webhook";
+			process.env["TWILIO_WHATSAPP_WEBHOOK_URL"] =
+				"https://example.com/webhook";
 			process.env["TWILIO_MESSAGING_SERVICE_SID"] = "MG123";
 
 			const { getTwilioConfig } = await import("@/lib/config/server");
@@ -151,7 +157,8 @@ describe("lib/config/server", () => {
 		it("sets hasSender true when TWILIO_WHATSAPP_FROM is set", async () => {
 			process.env["TWILIO_ACCOUNT_SID"] = "AC123";
 			process.env["TWILIO_AUTH_TOKEN"] = "token123";
-			process.env["TWILIO_WHATSAPP_WEBHOOK_URL"] = "https://example.com/webhook";
+			process.env["TWILIO_WHATSAPP_WEBHOOK_URL"] =
+				"https://example.com/webhook";
 			process.env["TWILIO_WHATSAPP_FROM"] = "+1234567890";
 
 			const { getTwilioConfig } = await import("@/lib/config/server");
@@ -164,7 +171,8 @@ describe("lib/config/server", () => {
 		it("sets optional fields to null when not provided", async () => {
 			process.env["TWILIO_ACCOUNT_SID"] = "AC123";
 			process.env["TWILIO_AUTH_TOKEN"] = "token123";
-			process.env["TWILIO_WHATSAPP_WEBHOOK_URL"] = "https://example.com/webhook";
+			process.env["TWILIO_WHATSAPP_WEBHOOK_URL"] =
+				"https://example.com/webhook";
 			process.env["TWILIO_MESSAGING_SERVICE_SID"] = "MG123";
 			delete process.env["TWILIO_WHATSAPP_FROM"];
 			delete process.env["TWILIO_CONVERSATIONS_AGENT_IDENTITY"];
@@ -181,7 +189,8 @@ describe("lib/config/server", () => {
 		it("sets hasSender false when neither messaging service nor from is set", async () => {
 			process.env["TWILIO_ACCOUNT_SID"] = "AC123";
 			process.env["TWILIO_AUTH_TOKEN"] = "token123";
-			process.env["TWILIO_WHATSAPP_WEBHOOK_URL"] = "https://example.com/webhook";
+			process.env["TWILIO_WHATSAPP_WEBHOOK_URL"] =
+				"https://example.com/webhook";
 			delete process.env["TWILIO_MESSAGING_SERVICE_SID"];
 			delete process.env["TWILIO_WHATSAPP_FROM"];
 
