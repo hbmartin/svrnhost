@@ -25,15 +25,6 @@ export const incomingMessageSchema = z
 
 export const whatsappResponseSchema = z.object({
 	message: z.string(),
-	buttons: z
-		.array(
-			z.object({
-				id: z.string(),
-				label: z.string(),
-				url: z.string().optional(),
-			}),
-		)
-		.optional(),
 	mediaUrl: z.string().optional(),
 	location: z
 		.object({

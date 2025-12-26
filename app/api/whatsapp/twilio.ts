@@ -175,7 +175,6 @@ export async function sendWhatsAppMessage({
 }: SendMessageParams): Promise<SendMessageResult> {
 	const config = getLazyTwilioConfig();
 	const messagingServiceSid = config.messagingServiceSid;
-	const buttonsContentSid = config.whatsappButtonsContentSid;
 	const fromNumber = from ?? config.whatsappFrom ?? undefined;
 	const formattedTo = formatWhatsAppNumber(to);
 	const formattedFrom = fromNumber
@@ -202,29 +201,7 @@ export async function sendWhatsAppMessage({
 		];
 	}
 
-	if (response.buttons?.length && buttonsContentSid) {
-		payload.contentSid = buttonsContentSid;
-		payload.contentVariables = JSON.stringify({
-			message: response.message,
-			buttons: response.buttons.map((button, index) => ({
-				id: button.id ?? `option-${index + 1}`,
-				label: button.label,
-				...(button.url ? { url: button.url } : {}),
-			})),
-		});
-	} else {
-		if ((response.buttons?.length ?? 0) > 0) {
-			logWhatsAppEvent("warn", {
-				event: "whatsapp.outbound.buttons_ignored",
-				direction: "outbound",
-				...correlation,
-				toNumber: to,
-				fromNumber: from,
-				error: "TWILIO_WHATSAPP_BUTTONS_CONTENT_SID missing",
-			});
-		}
-		payload.body = response.message;
-	}
+	payload.body = response.message;
 
 	return tracer.startActiveSpan("twilio.messages.create", async (span) => {
 		setWhatsAppSpanAttributes(span, {

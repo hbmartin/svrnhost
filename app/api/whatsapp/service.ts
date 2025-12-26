@@ -369,6 +369,19 @@ async function generateSafeAIResponse(
 			},
 		});
 
+		// Log the full LLM response to the trace
+		span.setAttribute("llm.response", JSON.stringify(aiResponse));
+		span.setAttribute("llm.response.message", aiResponse.message);
+		if (aiResponse.mediaUrl) {
+			span.setAttribute("llm.response.media_url", aiResponse.mediaUrl);
+		}
+		if (aiResponse.location) {
+			span.setAttribute(
+				"llm.response.location",
+				JSON.stringify(aiResponse.location),
+			);
+		}
+
 		// Validate the response
 		if (!isValidWhatsAppResponse(aiResponse)) {
 			span.setStatus({
