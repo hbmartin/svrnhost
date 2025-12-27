@@ -1,5 +1,6 @@
 import type { Geo } from "@vercel/functions";
 
+// TODO: move this to DB/Redis
 export const svrnHostSystemPrompt = `
 # SVRN Host System Prompt
 

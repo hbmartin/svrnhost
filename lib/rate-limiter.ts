@@ -11,6 +11,8 @@
  * where messages typically arrive on the same instance in quick succession.
  */
 
+// TODO: implement redis based, instead of 'tokens' use a more precise technical term
+
 import { WHATSAPP_LIMITS } from "@/lib/config/limits";
 
 interface BucketState {

@@ -17,6 +17,8 @@ import type { IncomingMessage } from "./types";
 import { sourceLabel } from "./types";
 import { normalizeWhatsAppNumber } from "./utils";
 
+// TODO: move non-critical log messages to analytics service
+
 export interface CreateInboundMessageParams {
 	chatId: string;
 	body: string;
@@ -40,6 +42,7 @@ export interface OutboundMessageRecord {
 	message: DBMessage;
 }
 
+// TODO implement caching with redis mapping phone as key to user msg history
 export async function findUserByPhone(phone: string): Promise<User | null> {
 	return getUserByPhone(phone);
 }
@@ -152,6 +155,7 @@ export async function markMessageFailed(
 	});
 }
 
+// TODO: move these log* function to another file and use a more descriptive verb than `log`
 export async function logWebhookOutbound(
 	requestUrl: string,
 	fromNumber: string,

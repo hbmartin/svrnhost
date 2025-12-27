@@ -14,9 +14,11 @@ import {
 } from "drizzle-orm/pg-core";
 import type { AppUsage } from "../usage";
 
+// TODO: figure out how to branch / backup Neon during migrations
+
 export const user = pgTable("User", {
 	id: uuid("id").primaryKey().notNull().defaultRandom(),
-	// TODO: email should be optional?
+	// TODO: phone should not be optional?
 	email: varchar("email", { length: 64 }).notNull(),
 	phone: varchar("phone", { length: 32 }),
 	password: varchar("password", { length: 64 }),
