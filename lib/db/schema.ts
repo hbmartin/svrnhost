@@ -16,9 +16,8 @@ import type { AppUsage } from "../usage";
 
 export const user = pgTable("User", {
 	id: uuid("id").primaryKey().notNull().defaultRandom(),
-	// TODO: email should be optional?
 	email: varchar("email", { length: 64 }).notNull(),
-	phone: varchar("phone", { length: 32 }),
+	phone: varchar("phone", { length: 32 }).notNull(),
 	password: varchar("password", { length: 64 }),
 });
 
@@ -39,20 +38,6 @@ export const chat = pgTable("Chat", {
 
 export type Chat = InferSelectModel<typeof chat>;
 
-// DEPRECATED: The following schema is deprecated and will be removed in the future.
-// Read the migration guide at https://chat-sdk.dev/docs/migration-guides/message-parts
-export const messageDeprecated = pgTable("Message", {
-	id: uuid("id").primaryKey().notNull().defaultRandom(),
-	chatId: uuid("chatId")
-		.notNull()
-		.references(() => chat.id),
-	role: varchar("role").notNull(),
-	content: json("content").notNull(),
-	createdAt: timestamp("createdAt").notNull(),
-});
-
-export type MessageDeprecated = InferSelectModel<typeof messageDeprecated>;
-
 export const message = pgTable("Message_v2", {
 	id: uuid("id").primaryKey().notNull().defaultRandom(),
 	chatId: uuid("chatId")
@@ -66,28 +51,6 @@ export const message = pgTable("Message_v2", {
 });
 
 export type DBMessage = InferSelectModel<typeof message>;
-
-// DEPRECATED: The following schema is deprecated and will be removed in the future.
-// Read the migration guide at https://chat-sdk.dev/docs/migration-guides/message-parts
-export const voteDeprecated = pgTable(
-	"Vote",
-	{
-		chatId: uuid("chatId")
-			.notNull()
-			.references(() => chat.id),
-		messageId: uuid("messageId")
-			.notNull()
-			.references(() => messageDeprecated.id),
-		isUpvoted: boolean("isUpvoted").notNull(),
-	},
-	(table) => {
-		return {
-			pk: primaryKey({ columns: [table.chatId, table.messageId] }),
-		};
-	},
-);
-
-export type VoteDeprecated = InferSelectModel<typeof voteDeprecated>;
 
 export const vote = pgTable(
 	"Vote_v2",

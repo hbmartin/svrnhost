@@ -317,7 +317,8 @@ export function chunkMessageByNewlines(
 		chunks.push(currentChunk);
 	}
 
-	return chunks;
+	// Filter out any empty chunks
+	return chunks.filter((chunk) => chunk.length > 0);
 }
 
 async function sendSingleMessageWithRateLimitAndRetry(
@@ -372,6 +373,10 @@ export async function sendWhatsAppMessageWithRetry(
 ): Promise<SendMessageResult> {
 	const { to, correlation, response } = params;
 
+	if (!response || response.trim().length === 0) {
+		throw new Error("Cannot send empty message");
+	}
+
 	const chunks = chunkMessageByNewlines(
 		response,
 		WHATSAPP_LIMITS.maxMessageLength,
@@ -390,22 +395,27 @@ export async function sendWhatsAppMessageWithRetry(
 		});
 	}
 
-	let lastResult: SendMessageResult | null = null;
+	const results: SendMessageResult[] = [];
+	let chunkIndex = 0;
 
-	for (let i = 0; i < chunks.length; i++) {
+	for (const chunk of chunks) {
+		// Skip empty chunks
+		if (chunk.length === 0) {
+			continue;
+		}
+
 		// Add delay between chunks (not before the first one)
-		if (i > 0) {
+		if (results.length > 0) {
 			await sleep(WHATSAPP_LIMITS.chunkDelayMs);
 		}
 
 		const chunkParams: SendMessageParams = {
 			...params,
-			response: chunks[i] as string,
+			response: chunk,
 		};
 
-		const { result, attempts } = await sendSingleMessageWithRateLimitAndRetry(
-			chunkParams,
-		);
+		const { result, attempts } =
+			await sendSingleMessageWithRateLimitAndRetry(chunkParams);
 
 		if (attempts > 1) {
 			logWhatsAppEvent("warn", {
@@ -416,14 +426,19 @@ export async function sendWhatsAppMessageWithRetry(
 				details: {
 					attempts,
 					outboundMessageSid: result.sid,
-					chunkIndex: chunks.length > 1 ? i + 1 : undefined,
+					chunkIndex: chunks.length > 1 ? chunkIndex + 1 : undefined,
 					totalChunks: chunks.length > 1 ? chunks.length : undefined,
 				},
 			});
 		}
 
-		lastResult = result;
+		results.push(result);
+		chunkIndex++;
 	}
 
-	return lastResult!;
+	const lastResult = results.at(-1);
+	if (!lastResult) {
+		throw new Error("No message chunks to send");
+	}
+	return lastResult;
 }

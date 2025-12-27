@@ -1,13 +1,5 @@
 import { SpanStatusCode, trace } from "@opentelemetry/api";
-import { convertToModelMessages, generateText } from "ai";
-import { myProvider } from "@/lib/ai/providers";
-import {
-	classifyAIError,
-	FALLBACK_RESPONSE,
-	getSafeErrorMessage,
-	isValidWhatsAppResponse,
-	LLM_CONFIG,
-} from "@/lib/ai/safety";
+import { generateSafeAIResponse } from "./ai-response";
 import { getTwilioConfig } from "@/lib/config/server";
 import { convertToUIMessages } from "@/lib/utils";
 import {
@@ -18,7 +10,6 @@ import {
 import {
 	findUserByPhone,
 	getChatMessages,
-	logAIEscalation,
 	logProcessingError,
 	logSendFailed,
 	logTypingFailed,
@@ -39,13 +30,19 @@ import {
 } from "./twilio";
 import type { IncomingMessage } from "./types";
 import {
-	buildSystemPrompt,
 	extractAttachments,
 	getAttemptsFromError,
 	normalizeWhatsAppNumber,
 } from "./utils";
 
 const tracer = trace.getTracer("whatsapp-webhook");
+
+/**
+ * Message sent to unregistered users who try to contact the service.
+ */
+const UNREGISTERED_USER_RESPONSE =
+	"Thanks for reaching out! This service is currently available to registered users only. " +
+	"Please contact contact@svrnventures.com to get started.";
 
 export async function processWhatsAppMessage({
 	payload,
@@ -172,6 +169,32 @@ async function receiveTwilioAndGenerateResponseAndSend({
 			...correlation,
 			details: { normalizedFrom },
 		});
+
+		// Send a helpful message to unregistered users
+		try {
+			await sendWhatsAppMessageWithRetry({
+				client,
+				to: normalizedFrom,
+				from: whatsappFrom ? normalizeWhatsAppNumber(whatsappFrom) : undefined,
+				response: UNREGISTERED_USER_RESPONSE,
+				correlation,
+			});
+			logWhatsAppEvent("info", {
+				event: "whatsapp.processing.unregistered_user_notified",
+				direction: "outbound",
+				...correlation,
+				toNumber: normalizedFrom,
+			});
+		} catch (sendError) {
+			logWhatsAppEvent("error", {
+				event: "whatsapp.processing.unregistered_user_notify_failed",
+				direction: "outbound",
+				...correlation,
+				error:
+					sendError instanceof Error ? sendError.message : String(sendError),
+			});
+		}
+
 		throw new Error(`User not found for phone: ${normalizedFrom}`);
 	}
 
@@ -326,132 +349,3 @@ async function trySendWhatsAppMessageWithRetry(params: {
 	}
 }
 
-interface GenerateSafeAIResponseParams {
-	chatId: string;
-	inboundMessageId: string;
-	history: ReturnType<typeof convertToUIMessages>;
-	payload: IncomingMessage;
-	requestUrl: string;
-}
-
-/**
- * Generate an AI response with safety measures:
- * - Strict timeout (30 seconds)
- * - Response validation
- * - Fallback to canned message on failure
- * - Escalation logging for monitoring
- */
-async function generateSafeAIResponse(
-	params: GenerateSafeAIResponseParams,
-): Promise<string> {
-	const { chatId, inboundMessageId, history, payload, requestUrl } = params;
-	const model = myProvider.languageModel("chat-model");
-
-	return tracer.startActiveSpan(
-		"llm.generate_whatsapp_response",
-		async (span) => {
-			setWhatsAppSpanAttributes(span, {
-				event: "whatsapp.llm.generate",
-				direction: "internal",
-				messageSid: payload.MessageSid,
-				waId: payload.WaId,
-				chatId,
-				requestUrl,
-			});
-
-			span.setAttribute("llm.operation", "generateText");
-			if (model.modelId) {
-				span.setAttribute("llm.model_id", model.modelId);
-			}
-
-			try {
-				const aiGeneratedFullResponse = await generateText({
-					model,
-					system: buildSystemPrompt(payload),
-					messages: await convertToModelMessages(history),
-					maxRetries: LLM_CONFIG.maxRetries,
-					abortSignal: AbortSignal.timeout(LLM_CONFIG.timeoutMs),
-					experimental_telemetry: {
-						isEnabled: true,
-						functionId: "generate-whatsapp-response",
-					},
-				});
-
-				logWhatsAppEvent("info", {
-					event: "whatsapp.processing.response_generated",
-					chatId,
-					requestUrl,
-					details: {
-						text: aiGeneratedFullResponse.text,
-						finishReason: aiGeneratedFullResponse.finishReason,
-						usage: aiGeneratedFullResponse.usage,
-					},
-				});
-				const aiResponse = aiGeneratedFullResponse.text;
-
-				// Log the full LLM response to the trace
-				// span.setAttribute("llm.response", JSON.stringify(aiResponse));
-
-				// Validate the response
-				if (!isValidWhatsAppResponse(aiResponse)) {
-					span.setStatus({
-						code: SpanStatusCode.ERROR,
-						message: "invalid_response",
-					});
-
-					logWhatsAppEvent("warn", {
-						event: "whatsapp.llm.invalid_response",
-						direction: "internal",
-						messageSid: payload.MessageSid,
-						waId: payload.WaId,
-						chatId,
-						details: {
-							messageLength: aiResponse?.length ?? 0,
-						},
-					});
-
-					await logAIEscalation({
-						chatId,
-						messageId: inboundMessageId,
-						failureType: aiResponse ? "invalid_response" : "empty_response",
-						error: "AI response failed validation",
-						requestUrl,
-					});
-
-					return FALLBACK_RESPONSE;
-				}
-
-				span.setStatus({ code: SpanStatusCode.OK });
-				return aiResponse;
-			} catch (error) {
-				const failureType = classifyAIError(error);
-				const errorMessage = getSafeErrorMessage(error);
-
-				span.recordException(error as Error);
-				span.setStatus({ code: SpanStatusCode.ERROR, message: errorMessage });
-
-				logWhatsAppEvent("error", {
-					event: "whatsapp.llm.failed",
-					direction: "internal",
-					messageSid: payload.MessageSid,
-					waId: payload.WaId,
-					chatId,
-					error: errorMessage,
-					details: { failureType },
-				});
-
-				await logAIEscalation({
-					chatId,
-					messageId: inboundMessageId,
-					failureType,
-					error: errorMessage,
-					requestUrl,
-				});
-
-				return FALLBACK_RESPONSE;
-			} finally {
-				span.end();
-			}
-		},
-	);
-}
