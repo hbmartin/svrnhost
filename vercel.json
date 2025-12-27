@@ -1,0 +1,8 @@
+{
+	"crons": [
+		{
+			"path": "/api/cron/send-queued-messages",
+			"schedule": "*/10 * * * *"
+		}
+	]
+}

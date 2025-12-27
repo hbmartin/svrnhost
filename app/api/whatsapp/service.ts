@@ -1,5 +1,10 @@
 import { SpanStatusCode, trace } from "@opentelemetry/api";
 import { getTwilioConfig } from "@/lib/config/server";
+import {
+	deferPendingMessagesForUser,
+	upsertUserEngagement,
+} from "@/lib/db/queries";
+import { calculateReengagementTime } from "@/lib/reengagement";
 import { convertToUIMessages } from "@/lib/utils";
 import { generateSafeAIResponse } from "./ai-response";
 import {
@@ -216,6 +221,27 @@ async function receiveTwilioAndGenerateResponseAndSend({
 		numMedia: payload.NumMedia,
 		requestUrl,
 	});
+
+	// Update user engagement tracking and defer any pending queued messages
+	const now = new Date();
+	await upsertUserEngagement(user.id, now);
+	const newScheduledFor = calculateReengagementTime(now);
+	const deferredCount = await deferPendingMessagesForUser({
+		userId: user.id,
+		newScheduledFor,
+	});
+	if (deferredCount > 0) {
+		logWhatsAppEvent("info", {
+			event: "whatsapp.queued_messages.deferred",
+			direction: "internal",
+			...correlationWithChat,
+			details: {
+				userId: user.id,
+				deferredCount,
+				newScheduledFor: newScheduledFor.toISOString(),
+			},
+		});
+	}
 
 	await updateProcessingStatus(payload.MessageSid, "processing", requestUrl);
 	await trySendTypingIndicator(client, payload, correlationWithChat);

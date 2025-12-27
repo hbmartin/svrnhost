@@ -2,6 +2,8 @@ import type { InferSelectModel } from "drizzle-orm";
 import {
 	boolean,
 	foreignKey,
+	index,
+	integer,
 	json,
 	jsonb,
 	pgTable,
@@ -169,3 +171,51 @@ export const webhookLog = pgTable(
 );
 
 export type WebhookLog = InferSelectModel<typeof webhookLog>;
+
+export const queuedMessage = pgTable(
+	"QueuedMessage",
+	{
+		id: uuid("id").primaryKey().notNull().defaultRandom(),
+		userId: uuid("userId")
+			.notNull()
+			.references(() => user.id),
+		content: text("content").notNull(),
+		status: varchar("status", {
+			enum: ["pending", "sent", "deferred", "failed", "cancelled"],
+		})
+			.notNull()
+			.default("pending"),
+		scheduledFor: timestamp("scheduledFor").notNull(),
+		createdAt: timestamp("createdAt").notNull().defaultNow(),
+		createdBy: uuid("createdBy")
+			.notNull()
+			.references(() => user.id),
+		sentAt: timestamp("sentAt"),
+		deferCount: integer("deferCount").notNull().default(0),
+		lastDeferredAt: timestamp("lastDeferredAt"),
+		error: text("error"),
+	},
+	(table) => ({
+		statusScheduledForIdx: index("QueuedMessage_status_scheduledFor_idx").on(
+			table.status,
+			table.scheduledFor,
+		),
+		userIdStatusIdx: index("QueuedMessage_userId_status_idx").on(
+			table.userId,
+			table.status,
+		),
+	}),
+);
+
+export type QueuedMessage = InferSelectModel<typeof queuedMessage>;
+
+export const userEngagement = pgTable("UserEngagement", {
+	userId: uuid("userId")
+		.primaryKey()
+		.notNull()
+		.references(() => user.id),
+	lastInboundMessageAt: timestamp("lastInboundMessageAt").notNull(),
+	updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+});
+
+export type UserEngagement = InferSelectModel<typeof userEngagement>;

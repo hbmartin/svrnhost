@@ -3,7 +3,15 @@
 import { z } from "zod";
 
 import { ADMIN_EMAIL } from "@/lib/constants";
-import { createUser, getUser, getUserByPhone } from "@/lib/db/queries";
+import {
+	createQueuedMessage,
+	createUser,
+	getAllUsers,
+	getUser,
+	getUserByPhone,
+	getUserEngagement,
+} from "@/lib/db/queries";
+import { calculateReengagementTime } from "@/lib/reengagement";
 
 import { auth } from "../(auth)/auth";
 
@@ -73,6 +81,90 @@ export async function addUser(
 			return { status: "invalid_data" };
 		}
 
+		return { status: "failed" };
+	}
+}
+
+// ============================================================
+// Queue Message Actions
+// ============================================================
+
+export type QueueMessageActionState = {
+	status:
+		| "idle"
+		| "success"
+		| "failed"
+		| "invalid_data"
+		| "user_not_found"
+		| "no_engagement"
+		| "forbidden";
+};
+
+const queueMessageSchema = z.object({
+	userId: z.string().uuid(),
+	content: z.string().min(1).max(4096),
+});
+
+export async function getUsers(): Promise<
+	Array<{ id: string; email: string; phone: string }>
+> {
+	const session = await auth();
+
+	if (!session || session.user?.email !== ADMIN_EMAIL) {
+		return [];
+	}
+
+	const users = await getAllUsers();
+	return users.map((u) => ({ id: u.id, email: u.email, phone: u.phone }));
+}
+
+export async function queueMessage(
+	_prevState: QueueMessageActionState,
+	formData: FormData,
+): Promise<QueueMessageActionState> {
+	const session = await auth();
+
+	if (!session || session.user?.email !== ADMIN_EMAIL) {
+		return { status: "forbidden" };
+	}
+
+	try {
+		const { userId, content } = queueMessageSchema.parse({
+			userId: formData.get("userId"),
+			content: formData.get("content"),
+		});
+
+		// Verify admin user exists
+		const adminUser = await getUser(session.user.email);
+		if (!adminUser[0]) {
+			return { status: "forbidden" };
+		}
+
+		// Get user's last engagement to calculate send time
+		const engagement = await getUserEngagement(userId);
+
+		if (!engagement) {
+			// User has never sent a message - cannot calculate re-engagement window
+			return { status: "no_engagement" };
+		}
+
+		const scheduledFor = calculateReengagementTime(
+			engagement.lastInboundMessageAt,
+		);
+
+		await createQueuedMessage({
+			userId,
+			content,
+			scheduledFor,
+			createdBy: adminUser[0].id,
+		});
+
+		return { status: "success" };
+	} catch (error) {
+		if (error instanceof z.ZodError) {
+			return { status: "invalid_data" };
+		}
+		console.error("Failed to queue message:", error);
 		return { status: "failed" };
 	}
 }

@@ -10,6 +10,8 @@ import {
 	gte,
 	inArray,
 	lt,
+	lte,
+	sql,
 	type SQL,
 } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
@@ -23,11 +25,15 @@ import {
 	type DBMessage,
 	document,
 	message,
+	type QueuedMessage,
+	queuedMessage,
 	type Suggestion,
 	stream,
 	suggestion,
 	type User,
 	user,
+	type UserEngagement,
+	userEngagement,
 	vote,
 	webhookLog,
 } from "./schema";
@@ -799,6 +805,204 @@ export async function getFailedOutboundMessages({
 		throw new ChatSDKError(
 			"bad_request:database",
 			"Failed to get failed outbound messages",
+		);
+	}
+}
+
+// ============================================================
+// Queued Message Functions (Re-engagement)
+// ============================================================
+
+export async function getAllUsers(): Promise<User[]> {
+	try {
+		return await db.select().from(user).orderBy(asc(user.email));
+	} catch (_error) {
+		throw new ChatSDKError("bad_request:database", "Failed to get all users");
+	}
+}
+
+export async function getUserById(id: string): Promise<User | null> {
+	try {
+		const [matchedUser] = await db
+			.select()
+			.from(user)
+			.where(eq(user.id, id))
+			.limit(1);
+		return matchedUser ?? null;
+	} catch (_error) {
+		throw new ChatSDKError("bad_request:database", "Failed to get user by id");
+	}
+}
+
+export async function createQueuedMessage(params: {
+	userId: string;
+	content: string;
+	scheduledFor: Date;
+	createdBy: string;
+}): Promise<QueuedMessage> {
+	try {
+		const [created] = await db
+			.insert(queuedMessage)
+			.values({
+				userId: params.userId,
+				content: params.content,
+				scheduledFor: params.scheduledFor,
+				createdBy: params.createdBy,
+			})
+			.returning();
+		if (!created) {
+			throw new Error("Insert did not return a row");
+		}
+		return created;
+	} catch (_error) {
+		throw new ChatSDKError(
+			"bad_request:database",
+			"Failed to create queued message",
+		);
+	}
+}
+
+export async function getPendingQueuedMessages(
+	limit = 50,
+): Promise<QueuedMessage[]> {
+	try {
+		return await db
+			.select()
+			.from(queuedMessage)
+			.where(
+				and(
+					eq(queuedMessage.status, "pending"),
+					lte(queuedMessage.scheduledFor, new Date()),
+				),
+			)
+			.orderBy(asc(queuedMessage.scheduledFor))
+			.limit(limit);
+	} catch (_error) {
+		throw new ChatSDKError(
+			"bad_request:database",
+			"Failed to get pending queued messages",
+		);
+	}
+}
+
+export async function updateQueuedMessageStatus(params: {
+	id: string;
+	status: "sent" | "failed" | "deferred" | "cancelled";
+	error?: string;
+	sentAt?: Date;
+}): Promise<void> {
+	try {
+		const updates: Partial<typeof queuedMessage.$inferInsert> = {
+			status: params.status,
+		};
+		if (params.error !== undefined) {
+			updates.error = params.error;
+		}
+		if (params.sentAt !== undefined) {
+			updates.sentAt = params.sentAt;
+		}
+		if (params.status === "deferred") {
+			updates.lastDeferredAt = new Date();
+		}
+
+		await db
+			.update(queuedMessage)
+			.set(updates)
+			.where(eq(queuedMessage.id, params.id));
+	} catch (_error) {
+		throw new ChatSDKError(
+			"bad_request:database",
+			"Failed to update queued message status",
+		);
+	}
+}
+
+export async function deferPendingMessagesForUser(params: {
+	userId: string;
+	newScheduledFor: Date;
+}): Promise<number> {
+	try {
+		const result = await db
+			.update(queuedMessage)
+			.set({
+				scheduledFor: params.newScheduledFor,
+				deferCount: sql`${queuedMessage.deferCount} + 1`,
+				lastDeferredAt: new Date(),
+			})
+			.where(
+				and(
+					eq(queuedMessage.userId, params.userId),
+					eq(queuedMessage.status, "pending"),
+				),
+			)
+			.returning({ id: queuedMessage.id });
+		return result.length;
+	} catch (_error) {
+		throw new ChatSDKError(
+			"bad_request:database",
+			"Failed to defer messages for user",
+		);
+	}
+}
+
+export async function upsertUserEngagement(
+	userId: string,
+	lastInboundAt: Date,
+): Promise<void> {
+	try {
+		await db
+			.insert(userEngagement)
+			.values({
+				userId,
+				lastInboundMessageAt: lastInboundAt,
+				updatedAt: new Date(),
+			})
+			.onConflictDoUpdate({
+				target: userEngagement.userId,
+				set: {
+					lastInboundMessageAt: lastInboundAt,
+					updatedAt: new Date(),
+				},
+			});
+	} catch (_error) {
+		throw new ChatSDKError(
+			"bad_request:database",
+			"Failed to update user engagement",
+		);
+	}
+}
+
+export async function getUserEngagement(
+	userId: string,
+): Promise<UserEngagement | null> {
+	try {
+		const [engagement] = await db
+			.select()
+			.from(userEngagement)
+			.where(eq(userEngagement.userId, userId))
+			.limit(1);
+		return engagement ?? null;
+	} catch (_error) {
+		throw new ChatSDKError(
+			"bad_request:database",
+			"Failed to get user engagement",
+		);
+	}
+}
+
+export async function getQueuedMessagesForUser(
+	userId: string,
+): Promise<QueuedMessage[]> {
+	try {
+		return await db
+			.select()
+			.from(queuedMessage)
+			.where(eq(queuedMessage.userId, userId))
+			.orderBy(desc(queuedMessage.createdAt));
+	} catch (_error) {
+		throw new ChatSDKError(
+			"bad_request:database",
+			"Failed to get queued messages for user",
 		);
 	}
 }
