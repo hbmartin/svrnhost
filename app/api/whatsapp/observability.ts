@@ -23,6 +23,7 @@ export interface WhatsAppLogFields extends WhatsAppCorrelationIds {
 	details?: Record<string, unknown> | undefined;
 }
 
+// TODO: ensure this is sent to vercel otel (observability)
 export function logWhatsAppEvent(
 	level: WhatsAppLogLevel,
 	fields: WhatsAppLogFields,

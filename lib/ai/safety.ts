@@ -94,6 +94,7 @@ export function classifyAIError(error: unknown): AIFailureType {
 /**
  * Extract a safe error message for logging (no sensitive data).
  */
+// TODO: redact PII
 export function getSafeErrorMessage(error: unknown): string {
 	if (error instanceof Error) {
 		// Truncate very long error messages

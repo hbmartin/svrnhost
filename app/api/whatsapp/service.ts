@@ -142,6 +142,7 @@ async function receiveTwilioAndGenerateResponseAndSend({
 	const client = createTwilioClient();
 	const { whatsappFrom, messagingServiceSid } = getTwilioConfig();
 
+	// TODO: consider using TWILIO_MESSAGING_SERVICE_SID
 	if (!whatsappFrom && !messagingServiceSid) {
 		throw new Error(
 			"TWILIO_WHATSAPP_FROM or TWILIO_MESSAGING_SERVICE_SID is required",
@@ -172,6 +173,7 @@ async function receiveTwilioAndGenerateResponseAndSend({
 			...correlation,
 			details: { normalizedFrom },
 		});
+		// TODO: send a message to the user telling them to contact <contact@svrnventures.com>
 		throw new Error(`User not found for phone: ${normalizedFrom}`);
 	}
 
@@ -326,6 +328,7 @@ async function trySendWhatsAppMessageWithRetry(params: {
 	}
 }
 
+// TODO: move this to new file
 interface GenerateSafeAIResponseParams {
 	chatId: string;
 	inboundMessageId: string;
@@ -447,7 +450,7 @@ async function generateSafeAIResponse(
 					error: errorMessage,
 					requestUrl,
 				});
-
+				// TODO: return message based on failure type
 				return FALLBACK_RESPONSE;
 			} finally {
 				span.end();

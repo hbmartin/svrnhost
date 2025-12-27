@@ -28,7 +28,10 @@ export async function proxy(request: NextRequest) {
 	}
 
 	// Allow WhatsApp webhook (uses X-Twilio-Signature for auth)
-	if (pathname.startsWith("/api/whatsapp")) {
+	if (
+		pathname.startsWith("/api/whatsapp") ||
+		pathname.startsWith("/api/sentry-test")
+	) {
 		return NextResponse.next();
 	}
 
