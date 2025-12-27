@@ -97,9 +97,12 @@ export function AddUserForm() {
 					className="bg-muted text-md md:text-sm"
 					defaultValue={phone}
 					id="phone"
+					inputMode="tel"
 					name="phone"
+					pattern="\+?[1-9]\d{1,14}"
 					placeholder="+14155551234"
 					required
+					title="E.164 format: +14155551234"
 					type="tel"
 				/>
 			</div>

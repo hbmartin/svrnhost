@@ -14,12 +14,19 @@ import {
 } from "drizzle-orm/pg-core";
 import type { AppUsage } from "../usage";
 
-export const user = pgTable("User", {
-	id: uuid("id").primaryKey().notNull().defaultRandom(),
-	email: varchar("email", { length: 64 }).notNull(),
-	phone: varchar("phone", { length: 32 }).notNull(),
-	password: varchar("password", { length: 64 }),
-});
+export const user = pgTable(
+	"User",
+	{
+		id: uuid("id").primaryKey().notNull().defaultRandom(),
+		email: varchar("email", { length: 64 }).notNull(),
+		phone: varchar("phone", { length: 32 }).notNull(),
+		password: varchar("password", { length: 64 }),
+	},
+	(table) => ({
+		unique_email: uniqueIndex("User_email_unique").on(table.email),
+		unique_phone: uniqueIndex("User_phone_unique").on(table.phone),
+	}),
+);
 
 export type User = InferSelectModel<typeof user>;
 

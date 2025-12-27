@@ -1,7 +1,7 @@
 import { SpanStatusCode, trace } from "@opentelemetry/api";
-import { generateSafeAIResponse } from "./ai-response";
 import { getTwilioConfig } from "@/lib/config/server";
 import { convertToUIMessages } from "@/lib/utils";
+import { generateSafeAIResponse } from "./ai-response";
 import {
 	logWhatsAppEvent,
 	setWhatsAppSpanAttributes,
@@ -348,4 +348,3 @@ async function trySendWhatsAppMessageWithRetry(params: {
 		return null;
 	}
 }
-

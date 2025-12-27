@@ -5,9 +5,9 @@ describe("chunkMessageByNewlines", () => {
 	const MAX_LENGTH = 1600;
 
 	describe("messages under limit", () => {
-		it("returns single chunk for empty message", () => {
+		it("returns no chunks for empty message", () => {
 			const result = chunkMessageByNewlines("", MAX_LENGTH);
-			expect(result).toEqual([""]);
+			expect(result).toEqual([]);
 		});
 
 		it("returns single chunk for message under limit", () => {

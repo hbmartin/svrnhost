@@ -30,7 +30,10 @@ const adminCreateUserSchema = z.object({
 	password: z.string().min(6),
 	phone: z
 		.string()
-		.regex(E164_PHONE_REGEX, "Phone must be in E.164 format (e.g., +14155551234)"),
+		.regex(
+			E164_PHONE_REGEX,
+			"Phone must be in E.164 format (e.g., +14155551234)",
+		),
 });
 
 export async function addUser(

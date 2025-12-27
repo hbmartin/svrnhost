@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+	type AIFailureType,
 	classifyAIError,
+	FAILURE_RESPONSES,
+	FALLBACK_RESPONSE,
 	getFailureResponse,
 	getSafeErrorMessage,
 	redactPII,
-	FALLBACK_RESPONSE,
-	FAILURE_RESPONSES,
-	type AIFailureType,
 } from "@/lib/ai/safety";
 
 describe("redactPII", () => {
@@ -120,16 +120,12 @@ describe("getSafeErrorMessage", () => {
 	it("converts non-Error values to strings", () => {
 		expect(getSafeErrorMessage("string error")).toBe("string error");
 		expect(getSafeErrorMessage(42)).toBe("42");
-		expect(getSafeErrorMessage({ message: "object" })).toBe(
-			'[object Object]',
-		);
+		expect(getSafeErrorMessage({ message: "object" })).toBe("[object Object]");
 	});
 
 	it("redacts PII from error messages", () => {
 		const error = new Error("User +14155551234 not found");
-		expect(getSafeErrorMessage(error)).toBe(
-			"User [PHONE_REDACTED] not found",
-		);
+		expect(getSafeErrorMessage(error)).toBe("User [PHONE_REDACTED] not found");
 	});
 
 	it("truncates long messages to 500 characters", () => {
@@ -186,7 +182,9 @@ describe("getFailureResponse", () => {
 
 	it("returns api_error message for API failures", () => {
 		expect(getFailureResponse("api_error")).toBe(FAILURE_RESPONSES.api_error);
-		expect(getFailureResponse("api_error")).toContain("temporarily unavailable");
+		expect(getFailureResponse("api_error")).toContain(
+			"temporarily unavailable",
+		);
 	});
 
 	it("returns fallback for other failure types", () => {

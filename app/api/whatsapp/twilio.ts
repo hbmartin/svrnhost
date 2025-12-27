@@ -291,6 +291,9 @@ export function chunkMessageByNewlines(
 	message: string,
 	maxLength: number,
 ): string[] {
+	if (!message) {
+		return [];
+	}
 	if (message.length <= maxLength) {
 		return [message];
 	}
