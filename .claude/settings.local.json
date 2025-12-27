@@ -13,7 +13,10 @@
       "Bash(find:*)",
       "Bash(pnpm test:coverage:*)",
       "Bash(pnpm vitest:*)",
-      "Bash(xargs cat:*)"
+      "Bash(xargs cat:*)",
+      "Bash(ls:*)",
+      "Bash(pnpm db:generate:*)",
+      "WebFetch(domain:orm.drizzle.team)"
     ]
   }
 }
