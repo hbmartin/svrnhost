@@ -1,5 +1,9 @@
+import { RestException } from "twilio";
 import { describe, expect, it } from "vitest";
-import { chunkMessageByNewlines } from "@/app/api/whatsapp/twilio";
+import {
+	chunkMessageByNewlines,
+	getTwilioErrorMetadata,
+} from "@/app/api/whatsapp/twilio";
 
 describe("chunkMessageByNewlines", () => {
 	const MAX_LENGTH = 1600;
@@ -159,5 +163,97 @@ describe("chunkMessageByNewlines", () => {
 			expect(result[0]).toBe("abc\ndef");
 			expect(result[1]).toBe("ghi");
 		});
+	});
+});
+
+describe("getTwilioErrorMetadata", () => {
+	it("returns undefined for non-RestException errors", () => {
+		expect(getTwilioErrorMetadata(new Error("Regular error"))).toBeUndefined();
+		expect(getTwilioErrorMetadata("string error")).toBeUndefined();
+		expect(getTwilioErrorMetadata(null)).toBeUndefined();
+		expect(getTwilioErrorMetadata(undefined)).toBeUndefined();
+		expect(getTwilioErrorMetadata({})).toBeUndefined();
+	});
+
+	it("extracts metadata from RestException", () => {
+		const mockResponse = {
+			statusCode: 400,
+			body: JSON.stringify({ code: 21211, message: "Invalid phone number" }),
+		};
+		const restException = new RestException(mockResponse as never);
+
+		const metadata = getTwilioErrorMetadata(restException);
+
+		expect(metadata).toBeDefined();
+		expect(metadata?.status).toBe(400);
+		expect(metadata?.code).toBe(21211);
+	});
+
+	it("extracts moreInfo from RestException when available", () => {
+		const mockResponse = {
+			statusCode: 400,
+			body: JSON.stringify({
+				code: 21211,
+				message: "Invalid phone number",
+				more_info: "https://www.twilio.com/docs/errors/21211",
+			}),
+		};
+		const restException = new RestException(mockResponse as never);
+
+		const metadata = getTwilioErrorMetadata(restException);
+
+		expect(metadata).toBeDefined();
+		expect(metadata?.moreInfo).toBe("https://www.twilio.com/docs/errors/21211");
+	});
+
+	it("extracts details from RestException when available", () => {
+		const mockResponse = {
+			statusCode: 400,
+			body: JSON.stringify({
+				code: 21211,
+				message: "Invalid phone number",
+				details: { field: "To", issue: "invalid format" },
+			}),
+		};
+		const restException = new RestException(mockResponse as never);
+
+		const metadata = getTwilioErrorMetadata(restException);
+
+		expect(metadata).toBeDefined();
+		expect(metadata?.details).toEqual({ field: "To", issue: "invalid format" });
+	});
+
+	it("handles RestException with minimal fields", () => {
+		const mockResponse = {
+			statusCode: 500,
+			body: JSON.stringify({ message: "Internal server error" }),
+		};
+		const restException = new RestException(mockResponse as never);
+
+		const metadata = getTwilioErrorMetadata(restException);
+
+		expect(metadata).toBeDefined();
+		expect(metadata?.status).toBe(500);
+		expect(metadata?.code).toBeUndefined();
+		expect(metadata?.moreInfo).toBeUndefined();
+		expect(metadata?.details).toBeUndefined();
+	});
+
+	it("handles RestException with non-object details", () => {
+		const mockResponse = {
+			statusCode: 400,
+			body: JSON.stringify({
+				code: 21211,
+				message: "Error",
+				details: "string details",
+			}),
+		};
+		const restException = new RestException(mockResponse as never);
+
+		const metadata = getTwilioErrorMetadata(restException);
+
+		expect(metadata).toBeDefined();
+		// Non-object details should be filtered out
+		expect(metadata?.details).toBeUndefined();
 	});
 });

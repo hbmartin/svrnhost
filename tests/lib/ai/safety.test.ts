@@ -6,6 +6,8 @@ import {
 	FALLBACK_RESPONSE,
 	getFailureResponse,
 	getSafeErrorMessage,
+	isValidWhatsAppResponse,
+	LLM_CONFIG,
 	redactPII,
 } from "@/lib/ai/safety";
 
@@ -198,5 +200,53 @@ describe("getFailureResponse", () => {
 		for (const type of fallbackTypes) {
 			expect(getFailureResponse(type)).toBe(FALLBACK_RESPONSE);
 		}
+	});
+});
+
+describe("isValidWhatsAppResponse", () => {
+	it("returns false for empty string", () => {
+		expect(isValidWhatsAppResponse("")).toBe(false);
+	});
+
+	it("returns false for whitespace-only string", () => {
+		expect(isValidWhatsAppResponse("   ")).toBe(false);
+		expect(isValidWhatsAppResponse("\t\n")).toBe(false);
+	});
+
+	it("returns false for string shorter than minResponseLength", () => {
+		// LLM_CONFIG.minResponseLength is typically 1
+		// Empty or whitespace-only fails
+		expect(isValidWhatsAppResponse("")).toBe(false);
+	});
+
+	it("returns true for valid response", () => {
+		expect(isValidWhatsAppResponse("Hello!")).toBe(true);
+		expect(isValidWhatsAppResponse("This is a response")).toBe(true);
+	});
+
+	it("returns true for response with leading/trailing whitespace if content is valid", () => {
+		expect(isValidWhatsAppResponse("  Hello  ")).toBe(true);
+	});
+
+	it("returns true for single character response", () => {
+		expect(isValidWhatsAppResponse("a")).toBe(true);
+	});
+
+	it("returns true for multiline response", () => {
+		expect(isValidWhatsAppResponse("Line 1\nLine 2")).toBe(true);
+	});
+});
+
+describe("LLM_CONFIG", () => {
+	it("exports timeoutMs", () => {
+		expect(LLM_CONFIG.timeoutMs).toBeGreaterThan(0);
+	});
+
+	it("exports maxRetries", () => {
+		expect(LLM_CONFIG.maxRetries).toBeGreaterThanOrEqual(0);
+	});
+
+	it("exports minResponseLength", () => {
+		expect(LLM_CONFIG.minResponseLength).toBeGreaterThanOrEqual(1);
 	});
 });

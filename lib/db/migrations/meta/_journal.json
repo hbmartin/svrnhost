@@ -82,15 +82,8 @@
     {
       "idx": 11,
       "version": "7",
-      "when": 1735300800000,
-      "tag": "0011_user_phone_required",
-      "breakpoints": true
-    },
-    {
-      "idx": 12,
-      "version": "7",
-      "when": 1735300900000,
-      "tag": "0012_user_unique_email_phone",
+      "when": 1766851586666,
+      "tag": "0011_regular_gabe_jones",
       "breakpoints": true
     }
   ]

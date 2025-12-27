@@ -99,7 +99,7 @@ export function AddUserForm() {
 					id="phone"
 					inputMode="tel"
 					name="phone"
-					pattern="\+?[1-9]\d{1,14}"
+					pattern="\+[1-9]\d{1,14}"
 					placeholder="+14155551234"
 					required
 					title="E.164 format: +14155551234"
