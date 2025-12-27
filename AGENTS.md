@@ -1,1 +1,1 @@
-After making any changes always execute `pnpm nb && pnpm test` to verify
+- After making any changes always execute `pnpm build && pnpm test:coverage` to verify
