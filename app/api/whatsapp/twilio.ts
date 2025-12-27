@@ -75,7 +75,6 @@ export async function sendTypingIndicator(
 ): Promise<void> {
 	const conversationSid = payload.ConversationSid;
 	const config = getLazyTwilioConfig();
-	// TODO: consider setting TWILIO_CONVERSATIONS_AGENT_IDENTITY
 	const agentIdentity = config.conversationsAgentIdentity;
 	const resolvedCorrelation: WhatsAppCorrelationIds = {
 		messageSid: correlation?.messageSid ?? payload.MessageSid,

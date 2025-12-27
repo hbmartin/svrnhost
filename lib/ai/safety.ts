@@ -31,6 +31,28 @@ export const FALLBACK_RESPONSE =
 	"We're experiencing technical difficulties. Please try again shortly.";
 
 /**
+ * User-friendly messages for different AI failure types.
+ * These provide more context than the generic fallback when appropriate.
+ */
+export const FAILURE_RESPONSES: Record<AIFailureType, string> = {
+	timeout:
+		"Your request is taking longer than expected. Please try again in a moment.",
+	api_error:
+		"Our service is temporarily unavailable. Please try again in a few minutes.",
+	invalid_response: FALLBACK_RESPONSE,
+	empty_response: FALLBACK_RESPONSE,
+	schema_validation_failed: FALLBACK_RESPONSE,
+	unknown: FALLBACK_RESPONSE,
+};
+
+/**
+ * Get the appropriate user-facing message for a failure type.
+ */
+export function getFailureResponse(failureType: AIFailureType): string {
+	return FAILURE_RESPONSES[failureType] ?? FALLBACK_RESPONSE;
+}
+
+/**
  * Validate that an AI response is usable for WhatsApp.
  *
  * A valid response must have:
@@ -92,13 +114,52 @@ export function classifyAIError(error: unknown): AIFailureType {
 }
 
 /**
- * Extract a safe error message for logging (no sensitive data).
+ * PII patterns for redaction in error messages.
+ * Order matters: more specific patterns should come before general ones.
  */
-// TODO: redact PII
-export function getSafeErrorMessage(error: unknown): string {
-	if (error instanceof Error) {
-		// Truncate very long error messages
-		return error.message.slice(0, 500);
+const PII_PATTERNS = [
+	// WhatsApp IDs (must come before phone patterns to avoid partial matches)
+	{ pattern: /\bwa_id[=:]\s*\d{10,}/gi, replacement: "wa_id=[ID_REDACTED]" },
+	// SSN pattern (must come before general phone to avoid partial matches)
+	{ pattern: /\b\d{3}-\d{2}-\d{4}\b/g, replacement: "[SSN_REDACTED]" },
+	// Credit card numbers (basic pattern)
+	{ pattern: /\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b/g, replacement: "[CC_REDACTED]" },
+	// E.164 phone numbers: +1234567890
+	{ pattern: /\+\d{10,15}/g, replacement: "[PHONE_REDACTED]" },
+	// US phone formats: (123) 456-7890, 123-456-7890, 123.456.7890
+	{
+		pattern: /\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g,
+		replacement: "[PHONE_REDACTED]",
+	},
+	// Email addresses
+	{
+		pattern: /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g,
+		replacement: "[EMAIL_REDACTED]",
+	},
+] as const;
+
+/**
+ * Redact PII from a string.
+ */
+export function redactPII(text: string): string {
+	let result = text;
+	for (const { pattern, replacement } of PII_PATTERNS) {
+		result = result.replace(pattern, replacement);
 	}
-	return String(error).slice(0, 500);
+	return result;
+}
+
+/**
+ * Extract a safe error message for logging (no sensitive data).
+ * Redacts PII such as phone numbers, emails, and other sensitive information.
+ */
+export function getSafeErrorMessage(error: unknown): string {
+	let message: string;
+	if (error instanceof Error) {
+		message = error.message;
+	} else {
+		message = String(error);
+	}
+	// Redact PII and truncate
+	return redactPII(message).slice(0, 500);
 }

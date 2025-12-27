@@ -23,7 +23,14 @@ export interface WhatsAppLogFields extends WhatsAppCorrelationIds {
 	details?: Record<string, unknown> | undefined;
 }
 
-// TODO: ensure this is sent to vercel otel (observability)
+/**
+ * Log WhatsApp events with structured data.
+ *
+ * Observability is handled via:
+ * - Console logs: Captured by Vercel's log ingestion
+ * - OpenTelemetry spans: Created in service.ts/twilio.ts, exported via @vercel/otel
+ * - Sentry: Error events are captured with full context for alerting
+ */
 export function logWhatsAppEvent(
 	level: WhatsAppLogLevel,
 	fields: WhatsAppLogFields,
