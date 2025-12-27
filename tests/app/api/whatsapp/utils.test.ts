@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { IncomingMessage } from "@/app/api/whatsapp/types";
 import {
 	buildSystemPrompt,
 	extractAttachments,
@@ -6,7 +7,6 @@ import {
 	getAttemptsFromError,
 	normalizeWhatsAppNumber,
 } from "@/app/api/whatsapp/utils";
-import type { IncomingMessage } from "@/app/api/whatsapp/types";
 
 describe("getAttemptsFromError", () => {
 	it("returns undefined for null", () => {
@@ -34,8 +34,12 @@ describe("getAttemptsFromError", () => {
 	});
 
 	it("returns undefined for non-finite attempts", () => {
-		expect(getAttemptsFromError({ attempts: Number.POSITIVE_INFINITY })).toBeUndefined();
-		expect(getAttemptsFromError({ attempts: Number.NEGATIVE_INFINITY })).toBeUndefined();
+		expect(
+			getAttemptsFromError({ attempts: Number.POSITIVE_INFINITY }),
+		).toBeUndefined();
+		expect(
+			getAttemptsFromError({ attempts: Number.NEGATIVE_INFINITY }),
+		).toBeUndefined();
 		expect(getAttemptsFromError({ attempts: Number.NaN })).toBeUndefined();
 	});
 
@@ -59,20 +63,28 @@ describe("normalizeWhatsAppNumber", () => {
 		});
 
 		it("strips whatsapp: prefix (lowercase)", () => {
-			expect(normalizeWhatsAppNumber("whatsapp:+14155551234")).toBe("+14155551234");
+			expect(normalizeWhatsAppNumber("whatsapp:+14155551234")).toBe(
+				"+14155551234",
+			);
 		});
 
 		it("strips whatsapp: prefix (uppercase)", () => {
-			expect(normalizeWhatsAppNumber("WHATSAPP:+14155551234")).toBe("+14155551234");
+			expect(normalizeWhatsAppNumber("WHATSAPP:+14155551234")).toBe(
+				"+14155551234",
+			);
 		});
 
 		it("strips whatsapp: prefix (mixed case)", () => {
-			expect(normalizeWhatsAppNumber("WhatsApp:+14155551234")).toBe("+14155551234");
+			expect(normalizeWhatsAppNumber("WhatsApp:+14155551234")).toBe(
+				"+14155551234",
+			);
 		});
 
 		it("handles leading/trailing whitespace", () => {
 			expect(normalizeWhatsAppNumber("  +14155551234  ")).toBe("+14155551234");
-			expect(normalizeWhatsAppNumber("  whatsapp:+14155551234  ")).toBe("+14155551234");
+			expect(normalizeWhatsAppNumber("  whatsapp:+14155551234  ")).toBe(
+				"+14155551234",
+			);
 		});
 
 		it("accepts various E.164 formats", () => {
@@ -94,29 +106,45 @@ describe("normalizeWhatsAppNumber", () => {
 		});
 
 		it("throws Error for missing plus sign", () => {
-			expect(() => normalizeWhatsAppNumber("14155551234")).toThrow("not in E.164 format");
+			expect(() => normalizeWhatsAppNumber("14155551234")).toThrow(
+				"not in E.164 format",
+			);
 		});
 
 		it("throws Error for number starting with +0", () => {
-			expect(() => normalizeWhatsAppNumber("+04155551234")).toThrow("not in E.164 format");
+			expect(() => normalizeWhatsAppNumber("+04155551234")).toThrow(
+				"not in E.164 format",
+			);
 		});
 
 		it("throws Error for too short number", () => {
-			expect(() => normalizeWhatsAppNumber("+1")).toThrow("not in E.164 format");
+			expect(() => normalizeWhatsAppNumber("+1")).toThrow(
+				"not in E.164 format",
+			);
 		});
 
 		it("throws Error for too long number", () => {
-			expect(() => normalizeWhatsAppNumber("+1234567890123456")).toThrow("not in E.164 format");
+			expect(() => normalizeWhatsAppNumber("+1234567890123456")).toThrow(
+				"not in E.164 format",
+			);
 		});
 
 		it("throws Error for non-numeric characters", () => {
-			expect(() => normalizeWhatsAppNumber("+1415-555-1234")).toThrow("not in E.164 format");
-			expect(() => normalizeWhatsAppNumber("+1 415 555 1234")).toThrow("not in E.164 format");
-			expect(() => normalizeWhatsAppNumber("+1(415)5551234")).toThrow("not in E.164 format");
+			expect(() => normalizeWhatsAppNumber("+1415-555-1234")).toThrow(
+				"not in E.164 format",
+			);
+			expect(() => normalizeWhatsAppNumber("+1 415 555 1234")).toThrow(
+				"not in E.164 format",
+			);
+			expect(() => normalizeWhatsAppNumber("+1(415)5551234")).toThrow(
+				"not in E.164 format",
+			);
 		});
 
 		it("throws Error for invalid format with prefix", () => {
-			expect(() => normalizeWhatsAppNumber("whatsapp:invalid")).toThrow("not in E.164 format");
+			expect(() => normalizeWhatsAppNumber("whatsapp:invalid")).toThrow(
+				"not in E.164 format",
+			);
 		});
 	});
 });
@@ -124,30 +152,46 @@ describe("normalizeWhatsAppNumber", () => {
 describe("formatWhatsAppNumber", () => {
 	describe("valid numbers", () => {
 		it("adds whatsapp: prefix to E.164 number", () => {
-			expect(formatWhatsAppNumber("+14155551234")).toBe("whatsapp:+14155551234");
+			expect(formatWhatsAppNumber("+14155551234")).toBe(
+				"whatsapp:+14155551234",
+			);
 		});
 
 		it("preserves existing whatsapp: prefix (lowercase)", () => {
-			expect(formatWhatsAppNumber("whatsapp:+14155551234")).toBe("whatsapp:+14155551234");
+			expect(formatWhatsAppNumber("whatsapp:+14155551234")).toBe(
+				"whatsapp:+14155551234",
+			);
 		});
 
 		it("normalizes existing whatsapp: prefix (uppercase to lowercase)", () => {
-			expect(formatWhatsAppNumber("WHATSAPP:+14155551234")).toBe("whatsapp:+14155551234");
+			expect(formatWhatsAppNumber("WHATSAPP:+14155551234")).toBe(
+				"whatsapp:+14155551234",
+			);
 		});
 
 		it("normalizes existing whatsapp: prefix (mixed case)", () => {
-			expect(formatWhatsAppNumber("WhatsApp:+14155551234")).toBe("whatsapp:+14155551234");
+			expect(formatWhatsAppNumber("WhatsApp:+14155551234")).toBe(
+				"whatsapp:+14155551234",
+			);
 		});
 
 		it("handles leading/trailing whitespace", () => {
-			expect(formatWhatsAppNumber("  +14155551234  ")).toBe("whatsapp:+14155551234");
-			expect(formatWhatsAppNumber("  whatsapp:+14155551234  ")).toBe("whatsapp:+14155551234");
+			expect(formatWhatsAppNumber("  +14155551234  ")).toBe(
+				"whatsapp:+14155551234",
+			);
+			expect(formatWhatsAppNumber("  whatsapp:+14155551234  ")).toBe(
+				"whatsapp:+14155551234",
+			);
 		});
 
 		it("formats various E.164 numbers", () => {
 			expect(formatWhatsAppNumber("+1234567890")).toBe("whatsapp:+1234567890");
-			expect(formatWhatsAppNumber("+447911123456")).toBe("whatsapp:+447911123456");
-			expect(formatWhatsAppNumber("+861381234567")).toBe("whatsapp:+861381234567");
+			expect(formatWhatsAppNumber("+447911123456")).toBe(
+				"whatsapp:+447911123456",
+			);
+			expect(formatWhatsAppNumber("+861381234567")).toBe(
+				"whatsapp:+861381234567",
+			);
 		});
 	});
 
@@ -162,16 +206,22 @@ describe("formatWhatsAppNumber", () => {
 		});
 
 		it("throws Error for missing plus sign", () => {
-			expect(() => formatWhatsAppNumber("14155551234")).toThrow("not in E.164 format");
+			expect(() => formatWhatsAppNumber("14155551234")).toThrow(
+				"not in E.164 format",
+			);
 		});
 
 		it("throws Error for invalid E.164", () => {
-			expect(() => formatWhatsAppNumber("+0123456789")).toThrow("not in E.164 format");
+			expect(() => formatWhatsAppNumber("+0123456789")).toThrow(
+				"not in E.164 format",
+			);
 			expect(() => formatWhatsAppNumber("+1")).toThrow("not in E.164 format");
 		});
 
 		it("throws Error for invalid format with prefix", () => {
-			expect(() => formatWhatsAppNumber("whatsapp:invalid")).toThrow("not in E.164 format");
+			expect(() => formatWhatsAppNumber("whatsapp:invalid")).toThrow(
+				"not in E.164 format",
+			);
 		});
 	});
 });

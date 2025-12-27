@@ -86,7 +86,6 @@ export function Chat({
 						id: request.id,
 						message: request.messages.at(-1),
 						selectedChatModel: currentModelIdRef.current,
-						selectedVisibilityType: "private",
 						...request.body,
 					},
 				};

@@ -2,7 +2,7 @@ import type { InferSelectModel } from "drizzle-orm";
 import {
 	boolean,
 	foreignKey,
-	json,
+	index,
 	jsonb,
 	pgTable,
 	primaryKey,
@@ -18,8 +18,8 @@ export const user = pgTable(
 	"User",
 	{
 		id: uuid("id").primaryKey().notNull().defaultRandom(),
-		email: varchar("email", { length: 64 }).notNull(),
-		phone: varchar("phone", { length: 32 }).notNull(),
+		email: varchar("email", { length: 64 }).notNull().unique(),
+		phone: varchar("phone", { length: 32 }).notNull().unique(),
 		password: varchar("password", { length: 64 }),
 	},
 	(table) => ({
@@ -30,51 +30,59 @@ export const user = pgTable(
 
 export type User = InferSelectModel<typeof user>;
 
-export const chat = pgTable("Chat", {
-	id: uuid("id").primaryKey().notNull().defaultRandom(),
-	createdAt: timestamp("createdAt").notNull(),
-	title: text("title").notNull(),
-	userId: uuid("userId")
-		.notNull()
-		.references(() => user.id),
-	visibility: varchar("visibility", { enum: ["public", "private"] })
-		.notNull()
-		.default("private"),
-	lastContext: jsonb("lastContext").$type<AppUsage | null>(),
-});
+export const chat = pgTable(
+	"Chat",
+	{
+		id: uuid("id").primaryKey().notNull().defaultRandom(),
+		createdAt: timestamp("createdAt").notNull(),
+		title: text("title").notNull(),
+		userId: uuid("userId")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		lastContext: jsonb("lastContext").$type<AppUsage | null>(),
+	},
+	(table) => ({
+		userIdIdx: index("Chat_userId_idx").on(table.userId),
+	}),
+);
 
 export type Chat = InferSelectModel<typeof chat>;
 
-export const message = pgTable("Message_v2", {
-	id: uuid("id").primaryKey().notNull().defaultRandom(),
-	chatId: uuid("chatId")
-		.notNull()
-		.references(() => chat.id),
-	role: varchar("role").notNull(),
-	parts: json("parts").notNull(),
-	attachments: json("attachments").notNull(),
-	metadata: jsonb("metadata").$type<Record<string, unknown> | null>(),
-	createdAt: timestamp("createdAt").notNull(),
-});
+export const message = pgTable(
+	"Message",
+	{
+		id: uuid("id").primaryKey().notNull().defaultRandom(),
+		chatId: uuid("chatId")
+			.notNull()
+			.references(() => chat.id, { onDelete: "cascade" }),
+		role: varchar("role", { length: 64 }).notNull(),
+		parts: jsonb("parts").notNull(),
+		attachments: jsonb("attachments").notNull(),
+		metadata: jsonb("metadata").$type<Record<string, unknown> | null>(),
+		createdAt: timestamp("createdAt").notNull(),
+	},
+	(table) => ({
+		chatIdIdx: index("Message_chatId_idx").on(table.chatId),
+	}),
+);
 
 export type DBMessage = InferSelectModel<typeof message>;
 
 export const vote = pgTable(
-	"Vote_v2",
+	"Vote",
 	{
 		chatId: uuid("chatId")
 			.notNull()
-			.references(() => chat.id),
+			.references(() => chat.id, { onDelete: "cascade" }),
 		messageId: uuid("messageId")
 			.notNull()
-			.references(() => message.id),
+			.references(() => message.id, { onDelete: "cascade" }),
 		isUpvoted: boolean("isUpvoted").notNull(),
 	},
-	(table) => {
-		return {
-			pk: primaryKey({ columns: [table.chatId, table.messageId] }),
-		};
-	},
+	(table) => ({
+		pk: primaryKey({ columns: [table.chatId, table.messageId] }),
+		messageIdIdx: index("Vote_messageId_idx").on(table.messageId),
+	}),
 );
 
 export type Vote = InferSelectModel<typeof vote>;
@@ -91,7 +99,7 @@ export const document = pgTable(
 			.default("text"),
 		userId: uuid("userId")
 			.notNull()
-			.references(() => user.id),
+			.references(() => user.id, { onDelete: "cascade" }),
 	},
 	(table) => {
 		return {
@@ -114,7 +122,7 @@ export const suggestion = pgTable(
 		isResolved: boolean("isResolved").notNull().default(false),
 		userId: uuid("userId")
 			.notNull()
-			.references(() => user.id),
+			.references(() => user.id, { onDelete: "cascade" }),
 		createdAt: timestamp("createdAt").notNull(),
 	},
 	(table) => ({
@@ -122,7 +130,8 @@ export const suggestion = pgTable(
 		documentRef: foreignKey({
 			columns: [table.documentId, table.documentCreatedAt],
 			foreignColumns: [document.id, document.createdAt],
-		}),
+		}).onDelete("cascade"),
+		documentIdIdx: index("Suggestion_documentId_idx").on(table.documentId),
 	}),
 );
 
@@ -140,7 +149,8 @@ export const stream = pgTable(
 		chatRef: foreignKey({
 			columns: [table.chatId],
 			foreignColumns: [chat.id],
-		}),
+		}).onDelete("cascade"),
+		chatIdIdx: index("Stream_chatId_idx").on(table.chatId),
 	}),
 );
 

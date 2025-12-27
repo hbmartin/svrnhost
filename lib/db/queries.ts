@@ -458,23 +458,6 @@ export async function deleteMessagesByChatIdAfterTimestamp({
 	}
 }
 
-export async function updateChatVisibilityById({
-	chatId,
-	visibility,
-}: {
-	chatId: string;
-	visibility: "private" | "public";
-}) {
-	try {
-		return await db.update(chat).set({ visibility }).where(eq(chat.id, chatId));
-	} catch (_error) {
-		throw new ChatSDKError(
-			"bad_request:database",
-			"Failed to update chat visibility by id",
-		);
-	}
-}
-
 export async function updateChatLastContextById({
 	chatId,
 	context,
