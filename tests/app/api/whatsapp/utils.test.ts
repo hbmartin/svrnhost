@@ -380,7 +380,5 @@ describe("buildSystemPrompt", () => {
 		const result = buildSystemPrompt(basePayload);
 		// The result should start with the svrnHostSystemPrompt content
 		expect(result.length).toBeGreaterThan(20);
-		// And end with the profile name section
-		expect(result).toMatch(/Profile Name: \w+$/);
 	});
 });

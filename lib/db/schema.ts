@@ -18,8 +18,8 @@ export const user = pgTable(
 	"User",
 	{
 		id: uuid("id").primaryKey().notNull().defaultRandom(),
-		email: varchar("email", { length: 64 }).notNull().unique(),
-		phone: varchar("phone", { length: 32 }).notNull().unique(),
+		email: varchar("email", { length: 64 }).notNull(),
+		phone: varchar("phone", { length: 32 }).notNull(),
 		password: varchar("password", { length: 64 }),
 	},
 	(table) => ({

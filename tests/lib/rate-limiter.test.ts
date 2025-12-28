@@ -74,7 +74,7 @@ describe("TokenBucketRateLimiter", () => {
 				bucketSize: 10,
 			});
 			// Consume all tokens
-			for (let i = 0; i < 10; i++) {
+			for (let _ = 0; _ < 10; _++) {
 				limiter.tryAcquire("key");
 			}
 			expect(limiter.tryAcquire("key")).toBe(false);
@@ -102,7 +102,7 @@ describe("TokenBucketRateLimiter", () => {
 				bucketSize: 10,
 			});
 			// Use 5 tokens
-			for (let i = 0; i < 5; i++) {
+			for (let _ = 0; _ < 5; _++) {
 				limiter.tryAcquire("key");
 			}
 			expect(limiter.getAvailableTokens("key")).toBe(5);
@@ -202,7 +202,7 @@ describe("TokenBucketRateLimiter", () => {
 				bucketSize: 10,
 			});
 			// Use all tokens
-			for (let i = 0; i < 10; i++) {
+			for (let _ = 0; _ < 10; _++) {
 				limiter.tryAcquire("key");
 			}
 			// Advance 50ms - should refill 0.5 tokens
@@ -302,7 +302,7 @@ describe("TokenBucketRateLimiter", () => {
 			});
 
 			// Rapid consumption
-			for (let i = 0; i < 100; i++) {
+			for (let _ = 0; _ < 100; _++) {
 				expect(limiter.tryAcquire("key")).toBe(true);
 			}
 			expect(limiter.tryAcquire("key")).toBe(false);
@@ -315,12 +315,12 @@ describe("TokenBucketRateLimiter", () => {
 			});
 
 			// Consume 5 from key1
-			for (let i = 0; i < 5; i++) {
+			for (let _ = 0; _ < 5; _++) {
 				limiter.tryAcquire("key1");
 			}
 
 			// Consume 3 from key2
-			for (let i = 0; i < 3; i++) {
+			for (let _ = 0; _ < 3; _++) {
 				limiter.tryAcquire("key2");
 			}
 

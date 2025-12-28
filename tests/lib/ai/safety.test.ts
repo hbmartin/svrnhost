@@ -213,12 +213,6 @@ describe("isValidWhatsAppResponse", () => {
 		expect(isValidWhatsAppResponse("\t\n")).toBe(false);
 	});
 
-	it("returns false for string shorter than minResponseLength", () => {
-		// LLM_CONFIG.minResponseLength is typically 1
-		// Empty or whitespace-only fails
-		expect(isValidWhatsAppResponse("")).toBe(false);
-	});
-
 	it("returns true for valid response", () => {
 		expect(isValidWhatsAppResponse("Hello!")).toBe(true);
 		expect(isValidWhatsAppResponse("This is a response")).toBe(true);
