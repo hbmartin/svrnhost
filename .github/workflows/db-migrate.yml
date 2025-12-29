@@ -36,26 +36,74 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Pre-migration validation
-        run: pnpm db:check
+        id: check
+        continue-on-error: true
+        run: pnpm db:check 2>&1 | tee migration-check.log
         env:
           POSTGRES_URL: ${{ secrets.POSTGRES_URL }}
 
       - name: Run database migrations
-        run: pnpm db:migrate
+        id: migrate
+        if: steps.check.outcome == 'success'
+        continue-on-error: true
+        run: pnpm db:migrate 2>&1 | tee migration.log
         env:
           POSTGRES_URL: ${{ secrets.POSTGRES_URL }}
 
       - name: Notify on failure
-        if: failure()
+        if: steps.check.outcome == 'failure' || steps.migrate.outcome == 'failure'
         uses: actions/github-script@v7
         with:
           script: |
+            const fs = require('fs');
             const { owner, repo } = context.repo;
             const runUrl = `https://github.com/${owner}/${repo}/actions/runs/${context.runId}`;
+
+            let output = '';
+            const checkOutcome = '${{ steps.check.outcome }}';
+            const migrateOutcome = '${{ steps.migrate.outcome }}';
+
+            if (checkOutcome === 'failure') {
+              const checkLog = fs.existsSync('migration-check.log')
+                ? fs.readFileSync('migration-check.log', 'utf8')
+                : 'No output captured';
+              output = `### Pre-migration validation failed\n\`\`\`\n${checkLog}\n\`\`\``;
+            } else if (migrateOutcome === 'failure') {
+              const migrateLog = fs.existsSync('migration.log')
+                ? fs.readFileSync('migration.log', 'utf8')
+                : 'No output captured';
+              output = `### Migration failed\n\`\`\`\n${migrateLog}\n\`\`\``;
+            }
+
+            // Truncate if too long for issue body
+            if (output.length > 60000) {
+              output = output.substring(0, 60000) + '\n...(truncated)';
+              // Close any unclosed code block from truncation
+              const fenceCount = (output.match(/```/g) || []).length;
+              if (fenceCount % 2 !== 0) {
+                output += '\n```';
+              }
+            }
+
             await github.rest.issues.create({
               owner,
               repo,
               title: `Database migration failed`,
-              body: `Database migration failed in workflow run.\n\n**Commit:** ${context.sha}\n**Branch:** ${context.ref}\n**Run:** ${runUrl}`,
+              body: `Database migration failed in workflow run.\n\n**Commit:** ${context.sha}\n**Branch:** ${context.ref}\n**Run:** ${runUrl}\n\n${output}`,
               labels: ['bug', 'database']
             });
+
+      - name: Upload migration logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: migration-logs
+          path: |
+            migration-check.log
+            migration.log
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Fail if migration failed
+        if: steps.check.outcome == 'failure' || steps.migrate.outcome == 'failure'
+        run: exit 1
