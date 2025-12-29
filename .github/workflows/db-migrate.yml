@@ -78,6 +78,11 @@ jobs:
             // Truncate if too long for issue body
             if (output.length > 60000) {
               output = output.substring(0, 60000) + '\n...(truncated)';
+              // Close any unclosed code block from truncation
+              const fenceCount = (output.match(/```/g) || []).length;
+              if (fenceCount % 2 !== 0) {
+                output += '\n```';
+              }
             }
 
             await github.rest.issues.create({
@@ -87,6 +92,17 @@ jobs:
               body: `Database migration failed in workflow run.\n\n**Commit:** ${context.sha}\n**Branch:** ${context.ref}\n**Run:** ${runUrl}\n\n${output}`,
               labels: ['bug', 'database']
             });
+
+      - name: Upload migration logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: migration-logs
+          path: |
+            migration-check.log
+            migration.log
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Fail if migration failed
         if: steps.check.outcome == 'failure' || steps.migrate.outcome == 'failure'
