@@ -54,7 +54,6 @@ const validBody = {
 		parts: [{ type: "text", text: "Why is the sky blue?" }],
 	},
 	selectedChatModel: "chat-model" as const,
-	selectedVisibilityType: "private" as const,
 };
 
 beforeEach(() => {

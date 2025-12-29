@@ -30,14 +30,8 @@ async function ChatPage({ params }: { params: Promise<{ id: string }> }) {
 		redirect("/login");
 	}
 
-	if (chat.visibility === "private") {
-		if (!session.user) {
-			return notFound();
-		}
-
-		if (session.user.id !== chat.userId) {
-			return notFound();
-		}
+	if (!session.user || session.user.id !== chat.userId) {
+		return notFound();
 	}
 
 	const messagesFromDb = await getMessagesByChatId({

@@ -89,7 +89,6 @@ describe("/api/chat/[id]/stream GET", () => {
 		mocks.getChatById.mockResolvedValue({
 			id: "chat-1",
 			userId: "user-2",
-			visibility: "private",
 		});
 
 		const response = await GET(new Request("http://localhost"), {
@@ -107,7 +106,6 @@ describe("/api/chat/[id]/stream GET", () => {
 		mocks.getChatById.mockResolvedValue({
 			id: "chat-1",
 			userId: "user-1",
-			visibility: "private",
 		});
 		mocks.getStreamIdsByChatId.mockResolvedValue([]);
 
@@ -125,7 +123,6 @@ describe("/api/chat/[id]/stream GET", () => {
 		mocks.getChatById.mockResolvedValue({
 			id: "chat-1",
 			userId: "user-1",
-			visibility: "private",
 		});
 		mocks.getStreamIdsByChatId.mockResolvedValue(["stream-1"]);
 
@@ -159,7 +156,6 @@ describe("/api/chat/[id]/stream GET", () => {
 		mocks.getChatById.mockResolvedValue({
 			id: "chat-1",
 			userId: "user-1",
-			visibility: "private",
 		});
 		mocks.getStreamIdsByChatId.mockResolvedValue(["stream-1"]);
 		mocks.getMessagesByChatId.mockResolvedValue([]);
@@ -178,7 +174,6 @@ describe("/api/chat/[id]/stream GET", () => {
 		mocks.getChatById.mockResolvedValue({
 			id: "chat-1",
 			userId: "user-1",
-			visibility: "private",
 		});
 		mocks.getStreamIdsByChatId.mockResolvedValue(["stream-1"]);
 		mocks.getMessagesByChatId.mockResolvedValue([
@@ -199,7 +194,6 @@ describe("/api/chat/[id]/stream GET", () => {
 		mocks.getChatById.mockResolvedValue({
 			id: "chat-1",
 			userId: "user-1",
-			visibility: "private",
 		});
 		mocks.getStreamIdsByChatId.mockResolvedValue(["stream-1"]);
 		// Message is more than 15 seconds old
@@ -222,7 +216,6 @@ describe("/api/chat/[id]/stream GET", () => {
 		mocks.getChatById.mockResolvedValue({
 			id: "chat-1",
 			userId: "user-1",
-			visibility: "private",
 		});
 		mocks.getStreamIdsByChatId.mockResolvedValue(["stream-1"]);
 		// Message is within 15 seconds

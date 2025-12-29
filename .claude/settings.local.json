@@ -1,19 +1,22 @@
 {
-  "permissions": {
-    "allow": [
-      "Bash(pnpm nb:*)",
-      "Bash(npx tsc:*)",
-      "Bash(head:*)",
-      "Bash(tail:*)",
-      "Bash(wc:*)",
-      "Bash(grep:*)",
-      "Bash(pnpm test:*)",
-      "Bash(tree:*)",
-      "Bash(cat:*)",
-      "Bash(find:*)",
-      "Bash(pnpm test:coverage:*)",
-      "Bash(pnpm vitest:*)",
-      "Bash(xargs cat:*)"
-    ]
-  }
+	"permissions": {
+		"allow": [
+			"Bash(pnpm build:*)",
+			"Bash(npx tsc:*)",
+			"Bash(head:*)",
+			"Bash(tail:*)",
+			"Bash(wc:*)",
+			"Bash(grep:*)",
+			"Bash(pnpm test:*)",
+			"Bash(tree:*)",
+			"Bash(cat:*)",
+			"Bash(find:*)",
+			"Bash(pnpm test:coverage:*)",
+			"Bash(pnpm vitest:*)",
+			"Bash(xargs cat:*)",
+			"Bash(ls:*)",
+			"Bash(pnpm db:generate:*)",
+			"WebFetch(domain:orm.drizzle.team)"
+		]
+	}
 }

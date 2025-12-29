@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+	type AIFailureType,
 	classifyAIError,
+	FAILURE_RESPONSES,
+	FALLBACK_RESPONSE,
 	getFailureResponse,
 	getSafeErrorMessage,
+	isValidWhatsAppResponse,
+	LLM_CONFIG,
 	redactPII,
-	FALLBACK_RESPONSE,
-	FAILURE_RESPONSES,
-	type AIFailureType,
 } from "@/lib/ai/safety";
 
 describe("redactPII", () => {
@@ -120,16 +122,12 @@ describe("getSafeErrorMessage", () => {
 	it("converts non-Error values to strings", () => {
 		expect(getSafeErrorMessage("string error")).toBe("string error");
 		expect(getSafeErrorMessage(42)).toBe("42");
-		expect(getSafeErrorMessage({ message: "object" })).toBe(
-			'[object Object]',
-		);
+		expect(getSafeErrorMessage({ message: "object" })).toBe("[object Object]");
 	});
 
 	it("redacts PII from error messages", () => {
 		const error = new Error("User +14155551234 not found");
-		expect(getSafeErrorMessage(error)).toBe(
-			"User [PHONE_REDACTED] not found",
-		);
+		expect(getSafeErrorMessage(error)).toBe("User [PHONE_REDACTED] not found");
 	});
 
 	it("truncates long messages to 500 characters", () => {
@@ -186,7 +184,9 @@ describe("getFailureResponse", () => {
 
 	it("returns api_error message for API failures", () => {
 		expect(getFailureResponse("api_error")).toBe(FAILURE_RESPONSES.api_error);
-		expect(getFailureResponse("api_error")).toContain("temporarily unavailable");
+		expect(getFailureResponse("api_error")).toContain(
+			"temporarily unavailable",
+		);
 	});
 
 	it("returns fallback for other failure types", () => {
@@ -200,5 +200,47 @@ describe("getFailureResponse", () => {
 		for (const type of fallbackTypes) {
 			expect(getFailureResponse(type)).toBe(FALLBACK_RESPONSE);
 		}
+	});
+});
+
+describe("isValidWhatsAppResponse", () => {
+	it("returns false for empty string", () => {
+		expect(isValidWhatsAppResponse("")).toBe(false);
+	});
+
+	it("returns false for whitespace-only string", () => {
+		expect(isValidWhatsAppResponse("   ")).toBe(false);
+		expect(isValidWhatsAppResponse("\t\n")).toBe(false);
+	});
+
+	it("returns true for valid response", () => {
+		expect(isValidWhatsAppResponse("Hello!")).toBe(true);
+		expect(isValidWhatsAppResponse("This is a response")).toBe(true);
+	});
+
+	it("returns true for response with leading/trailing whitespace if content is valid", () => {
+		expect(isValidWhatsAppResponse("  Hello  ")).toBe(true);
+	});
+
+	it("returns true for single character response", () => {
+		expect(isValidWhatsAppResponse("a")).toBe(true);
+	});
+
+	it("returns true for multiline response", () => {
+		expect(isValidWhatsAppResponse("Line 1\nLine 2")).toBe(true);
+	});
+});
+
+describe("LLM_CONFIG", () => {
+	it("exports timeoutMs", () => {
+		expect(LLM_CONFIG.timeoutMs).toBeGreaterThan(0);
+	});
+
+	it("exports maxRetries", () => {
+		expect(LLM_CONFIG.maxRetries).toBeGreaterThanOrEqual(0);
+	});
+
+	it("exports minResponseLength", () => {
+		expect(LLM_CONFIG.minResponseLength).toBeGreaterThanOrEqual(1);
 	});
 });

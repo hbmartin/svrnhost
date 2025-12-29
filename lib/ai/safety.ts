@@ -123,7 +123,10 @@ const PII_PATTERNS = [
 	// SSN pattern (must come before general phone to avoid partial matches)
 	{ pattern: /\b\d{3}-\d{2}-\d{4}\b/g, replacement: "[SSN_REDACTED]" },
 	// Credit card numbers (basic pattern)
-	{ pattern: /\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b/g, replacement: "[CC_REDACTED]" },
+	{
+		pattern: /\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b/g,
+		replacement: "[CC_REDACTED]",
+	},
 	// E.164 phone numbers: +1234567890
 	{ pattern: /\+\d{10,15}/g, replacement: "[PHONE_REDACTED]" },
 	// US phone formats: (123) 456-7890, 123-456-7890, 123.456.7890
