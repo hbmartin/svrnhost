@@ -1,1 +1,2 @@
 - After making any changes always execute `pnpm build && pnpm test:coverage` to verify
+- Never edit files in lib/db/migrations/ - instead run drizzle `pnpm db:generate` to create migrations
