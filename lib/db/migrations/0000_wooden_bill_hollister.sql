@@ -7,13 +7,12 @@ CREATE TABLE "Chat" (
 );
 --> statement-breakpoint
 CREATE TABLE "Document" (
-	"id" uuid DEFAULT gen_random_uuid() NOT NULL,
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"createdAt" timestamp NOT NULL,
 	"title" text NOT NULL,
 	"content" text,
 	"text" varchar DEFAULT 'text' NOT NULL,
-	"userId" uuid NOT NULL,
-	CONSTRAINT "Document_id_createdAt_pk" PRIMARY KEY("id","createdAt")
+	"userId" uuid NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "Message" (
@@ -26,24 +25,55 @@ CREATE TABLE "Message" (
 	"createdAt" timestamp NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "MessageTemplate" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"contentSid" varchar(64) NOT NULL,
+	"friendlyName" varchar(256) NOT NULL,
+	"language" varchar(10) NOT NULL,
+	"variables" jsonb,
+	"types" jsonb NOT NULL,
+	"whatsappApprovalStatus" varchar(32) DEFAULT 'unsubmitted',
+	"whatsappTemplateName" varchar(256),
+	"whatsappCategory" varchar(32),
+	"rejectionReason" text,
+	"twilioCreatedAt" timestamp,
+	"twilioUpdatedAt" timestamp,
+	"createdAt" timestamp DEFAULT now() NOT NULL,
+	"updatedAt" timestamp DEFAULT now() NOT NULL,
+	"lastSyncedAt" timestamp DEFAULT now() NOT NULL,
+	"isDeleted" boolean DEFAULT false NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "ScheduledMessage" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"templateId" uuid,
+	"contentSid" varchar(64),
+	"contentVariables" jsonb,
+	"recipients" jsonb NOT NULL,
+	"scheduledAt" timestamp NOT NULL,
+	"status" varchar(32) DEFAULT 'pending' NOT NULL,
+	"results" jsonb,
+	"error" text,
+	"processedAt" timestamp,
+	"createdAt" timestamp DEFAULT now() NOT NULL,
+	"createdBy" varchar(256)
+);
+--> statement-breakpoint
 CREATE TABLE "Stream" (
-	"id" uuid DEFAULT gen_random_uuid() NOT NULL,
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"chatId" uuid NOT NULL,
-	"createdAt" timestamp NOT NULL,
-	CONSTRAINT "Stream_id_pk" PRIMARY KEY("id")
+	"createdAt" timestamp NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "Suggestion" (
-	"id" uuid DEFAULT gen_random_uuid() NOT NULL,
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"documentId" uuid NOT NULL,
-	"documentCreatedAt" timestamp NOT NULL,
 	"originalText" text NOT NULL,
 	"suggestedText" text NOT NULL,
 	"description" text,
 	"isResolved" boolean DEFAULT false NOT NULL,
 	"userId" uuid NOT NULL,
-	"createdAt" timestamp NOT NULL,
-	CONSTRAINT "Suggestion_id_pk" PRIMARY KEY("id")
+	"createdAt" timestamp NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "User" (
@@ -79,16 +109,17 @@ CREATE TABLE "WebhookLog" (
 ALTER TABLE "Chat" ADD CONSTRAINT "Chat_userId_User_id_fk" FOREIGN KEY ("userId") REFERENCES "public"."User"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "Document" ADD CONSTRAINT "Document_userId_User_id_fk" FOREIGN KEY ("userId") REFERENCES "public"."User"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "Message" ADD CONSTRAINT "Message_chatId_Chat_id_fk" FOREIGN KEY ("chatId") REFERENCES "public"."Chat"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "ScheduledMessage" ADD CONSTRAINT "ScheduledMessage_templateId_MessageTemplate_id_fk" FOREIGN KEY ("templateId") REFERENCES "public"."MessageTemplate"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "Stream" ADD CONSTRAINT "Stream_chatId_Chat_id_fk" FOREIGN KEY ("chatId") REFERENCES "public"."Chat"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "Suggestion" ADD CONSTRAINT "Suggestion_documentId_Document_id_fk" FOREIGN KEY ("documentId") REFERENCES "public"."Document"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "Suggestion" ADD CONSTRAINT "Suggestion_userId_User_id_fk" FOREIGN KEY ("userId") REFERENCES "public"."User"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "Suggestion" ADD CONSTRAINT "Suggestion_documentId_documentCreatedAt_Document_id_createdAt_fk" FOREIGN KEY ("documentId","documentCreatedAt") REFERENCES "public"."Document"("id","createdAt") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "Vote" ADD CONSTRAINT "Vote_chatId_Chat_id_fk" FOREIGN KEY ("chatId") REFERENCES "public"."Chat"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "Vote" ADD CONSTRAINT "Vote_messageId_Message_id_fk" FOREIGN KEY ("messageId") REFERENCES "public"."Message"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "Chat_userId_idx" ON "Chat" USING btree ("userId");--> statement-breakpoint
+CREATE INDEX "Document_userId_idx" ON "Document" USING btree ("userId");--> statement-breakpoint
 CREATE INDEX "Message_chatId_idx" ON "Message" USING btree ("chatId");--> statement-breakpoint
+CREATE UNIQUE INDEX "MessageTemplate_contentSid_unique" ON "MessageTemplate" USING btree ("contentSid");--> statement-breakpoint
 CREATE INDEX "Stream_chatId_idx" ON "Stream" USING btree ("chatId");--> statement-breakpoint
 CREATE INDEX "Suggestion_documentId_idx" ON "Suggestion" USING btree ("documentId");--> statement-breakpoint
-CREATE UNIQUE INDEX "User_email_unique" ON "User" USING btree ("email");--> statement-breakpoint
-CREATE UNIQUE INDEX "User_phone_unique" ON "User" USING btree ("phone");--> statement-breakpoint
 CREATE INDEX "Vote_messageId_idx" ON "Vote" USING btree ("messageId");--> statement-breakpoint
 CREATE UNIQUE INDEX "WebhookLog_messageSid_unique" ON "WebhookLog" USING btree ("messageSid");
