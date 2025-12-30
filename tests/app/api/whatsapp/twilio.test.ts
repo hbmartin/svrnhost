@@ -1,9 +1,32 @@
 import { RestException } from "twilio";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	chunkMessageByNewlines,
 	getTwilioErrorMetadata,
+	type SendMessageParams,
+	sendWhatsAppMessageWithRetry,
+	type TwilioClient,
 } from "@/app/api/whatsapp/twilio";
+
+// Mock the rate limiter
+vi.mock("@/lib/rate-limiter", () => ({
+	whatsappRateLimiter: {
+		acquire: vi.fn().mockResolvedValue(undefined),
+	},
+}));
+
+// Mock config
+vi.mock("@/lib/config/server", () => ({
+	getTwilioConfig: vi.fn(() => ({
+		accountSid: "AC123",
+		authToken: "token",
+		whatsappFrom: "+15551234567",
+		messagingServiceSid: undefined,
+		whatsappWebhookUrl: "https://example.com/api/whatsapp",
+		conversationsAgentIdentity: undefined,
+	})),
+	vercelEnv: "test",
+}));
 
 describe("chunkMessageByNewlines", () => {
 	const MAX_LENGTH = 1600;
@@ -255,5 +278,266 @@ describe("getTwilioErrorMetadata", () => {
 		expect(metadata).toBeDefined();
 		// Non-object details should be filtered out
 		expect(metadata?.details).toBeUndefined();
+	});
+});
+
+describe("sendWhatsAppMessageWithRetry", () => {
+	const createMockClient = (
+		createFn: () => Promise<{ sid: string; status: string }>,
+	): TwilioClient =>
+		({
+			messages: {
+				create: createFn,
+			},
+		}) as unknown as TwilioClient;
+
+	beforeEach(() => {
+		vi.clearAllMocks();
+		vi.useFakeTimers();
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	it("throws error for empty message", async () => {
+		const client = createMockClient(() =>
+			Promise.resolve({ sid: "SM123", status: "sent" }),
+		);
+
+		const params: SendMessageParams = {
+			client,
+			to: "+15559876543",
+			response: "",
+		};
+
+		await expect(sendWhatsAppMessageWithRetry(params)).rejects.toThrow(
+			"Cannot send empty message",
+		);
+	});
+
+	it("throws error for whitespace-only message", async () => {
+		const client = createMockClient(() =>
+			Promise.resolve({ sid: "SM123", status: "sent" }),
+		);
+
+		const params: SendMessageParams = {
+			client,
+			to: "+15559876543",
+			response: "   \n\t  ",
+		};
+
+		await expect(sendWhatsAppMessageWithRetry(params)).rejects.toThrow(
+			"Cannot send empty message",
+		);
+	});
+
+	it("sends a single message successfully", async () => {
+		const mockCreate = vi
+			.fn()
+			.mockResolvedValue({ sid: "SM123", status: "sent" });
+		const client = createMockClient(mockCreate);
+
+		const params: SendMessageParams = {
+			client,
+			to: "+15559876543",
+			response: "Hello, world!",
+		};
+
+		const resultPromise = sendWhatsAppMessageWithRetry(params);
+		await vi.runAllTimersAsync();
+		const result = await resultPromise;
+
+		expect(result.sid).toBe("SM123");
+		expect(result.status).toBe("sent");
+		expect(mockCreate).toHaveBeenCalledTimes(1);
+	});
+
+	it("sends chunked messages for long content", async () => {
+		const mockCreate = vi
+			.fn()
+			.mockResolvedValue({ sid: "SM123", status: "sent" });
+		const client = createMockClient(mockCreate);
+
+		// Create a message that will be chunked (over 1600 chars)
+		const line1 = "a".repeat(1000);
+		const line2 = "b".repeat(1000);
+		const params: SendMessageParams = {
+			client,
+			to: "+15559876543",
+			response: `${line1}\n${line2}`,
+		};
+
+		const resultPromise = sendWhatsAppMessageWithRetry(params);
+		await vi.runAllTimersAsync();
+		const result = await resultPromise;
+
+		expect(result.sid).toBe("SM123");
+		// Should be called twice for two chunks
+		expect(mockCreate).toHaveBeenCalledTimes(2);
+	});
+
+	it("includes correlation data in calls", async () => {
+		vi.spyOn(console, "log").mockImplementation(() => {});
+		const mockCreate = vi
+			.fn()
+			.mockResolvedValue({ sid: "SM123", status: "sent" });
+		const client = createMockClient(mockCreate);
+
+		const params: SendMessageParams = {
+			client,
+			to: "+15559876543",
+			response: "Hello",
+			correlation: {
+				messageSid: "SM-incoming",
+				waId: "123456",
+				chatId: "chat-123",
+			},
+		};
+
+		const resultPromise = sendWhatsAppMessageWithRetry(params);
+		await vi.runAllTimersAsync();
+		await resultPromise;
+
+		expect(mockCreate).toHaveBeenCalled();
+	});
+
+	it("retries on transient failures and succeeds", async () => {
+		const mockCreate = vi
+			.fn()
+			.mockRejectedValueOnce(
+				new RestException({
+					statusCode: 503,
+					body: JSON.stringify({ message: "Service unavailable" }),
+				} as never),
+			)
+			.mockResolvedValue({ sid: "SM123", status: "sent" });
+		const client = createMockClient(mockCreate);
+
+		const params: SendMessageParams = {
+			client,
+			to: "+15559876543",
+			response: "Hello",
+		};
+
+		const resultPromise = sendWhatsAppMessageWithRetry(params);
+		await vi.runAllTimersAsync();
+		const result = await resultPromise;
+
+		expect(result.sid).toBe("SM123");
+		expect(mockCreate).toHaveBeenCalledTimes(2);
+	});
+
+	it("does not retry on non-retryable errors", async () => {
+		const mockCreate = vi.fn().mockRejectedValue(
+			new RestException({
+				statusCode: 400,
+				body: JSON.stringify({ message: "Bad request" }),
+			} as never),
+		);
+		const client = createMockClient(mockCreate);
+
+		const params: SendMessageParams = {
+			client,
+			to: "+15559876543",
+			response: "Hello",
+		};
+
+		const resultPromise = sendWhatsAppMessageWithRetry(params);
+		resultPromise.catch(() => {}); // Prevent unhandled rejection warning
+
+		await vi.runAllTimersAsync();
+		await expect(resultPromise).rejects.toThrow();
+		// Only one attempt for non-retryable error
+		expect(mockCreate).toHaveBeenCalledTimes(1);
+	});
+
+	it("logs chunking info for multi-chunk messages", async () => {
+		const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+		const mockCreate = vi
+			.fn()
+			.mockResolvedValue({ sid: "SM123", status: "sent" });
+		const client = createMockClient(mockCreate);
+
+		const line1 = "a".repeat(1000);
+		const line2 = "b".repeat(1000);
+		const params: SendMessageParams = {
+			client,
+			to: "+15559876543",
+			response: `${line1}\n${line2}`,
+			correlation: { messageSid: "SM-test" },
+		};
+
+		const resultPromise = sendWhatsAppMessageWithRetry(params);
+		await vi.runAllTimersAsync();
+		await resultPromise;
+
+		expect(logSpy).toHaveBeenCalledWith(
+			"[whatsapp]",
+			expect.objectContaining({
+				event: "whatsapp.outbound.chunking",
+			}),
+		);
+
+		logSpy.mockRestore();
+	});
+
+	it("logs retry warnings when retries occur", async () => {
+		const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+		vi.spyOn(console, "log").mockImplementation(() => {});
+		const mockCreate = vi
+			.fn()
+			.mockRejectedValueOnce(
+				new RestException({
+					statusCode: 500,
+					body: JSON.stringify({ message: "Server error" }),
+				} as never),
+			)
+			.mockResolvedValue({ sid: "SM123", status: "sent" });
+		const client = createMockClient(mockCreate);
+
+		const params: SendMessageParams = {
+			client,
+			to: "+15559876543",
+			response: "Hello",
+		};
+
+		const resultPromise = sendWhatsAppMessageWithRetry(params);
+		await vi.runAllTimersAsync();
+		await resultPromise;
+
+		expect(warnSpy).toHaveBeenCalledWith(
+			"[whatsapp]",
+			expect.objectContaining({
+				event: "whatsapp.outbound.send_retried",
+			}),
+		);
+
+		warnSpy.mockRestore();
+	});
+
+	it("handles rate limit errors from rate limiter", async () => {
+		const { whatsappRateLimiter } = await import("@/lib/rate-limiter");
+		vi.mocked(whatsappRateLimiter.acquire).mockRejectedValueOnce(
+			new Error("Rate limit exceeded"),
+		);
+
+		const mockCreate = vi
+			.fn()
+			.mockResolvedValue({ sid: "SM123", status: "sent" });
+		const client = createMockClient(mockCreate);
+
+		const params: SendMessageParams = {
+			client,
+			to: "+15559876543",
+			response: "Hello",
+		};
+
+		const resultPromise = sendWhatsAppMessageWithRetry(params);
+		resultPromise.catch(() => {}); // Prevent unhandled rejection warning
+
+		await vi.runAllTimersAsync();
+		await expect(resultPromise).rejects.toThrow("Rate limit exceeded");
+		expect(mockCreate).not.toHaveBeenCalled();
 	});
 });

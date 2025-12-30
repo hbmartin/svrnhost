@@ -18,7 +18,7 @@
 
 - M1 Foundations: Implement WhatsApp webhook (validation, rate limits, retries), configure env for Twilio senders/templates, clarify message-type contract to the LLM, add basic health/observability.
 - M2 Profiles & Preferences: expand User to store name/email/location/lifestyle/investment/privacy prefs; build capture flows (WhatsApp onboarding), consent logging, and identity linking.
-- M3 Messaging Templates & Email: set up template store + approval status; add email provider + worker for weekly digests; build content generation pipeline (LLM) and scheduling.
+- M3 Messaging Templates & Email: set up template store + approval status; add email provider + worker for weekly digests.
 - M4 Events/RSVP/Payments: model events/dinners, invitations, RSVPs; generate one-click RSVP links/tokens; integrate Stripe Checkout/Payment Links and surface in WhatsApp/email; store payment status.
 - M5 Social Graph & Intros: model connections, similarity signals, and attendance history; surface “friends attending” in event flows; design intro flow (email guaranteed, explore WhatsApp handoff with compliance) with admin approval queue.
 - M6 Admin Dashboard: CRUD/search for users/events, pending intro approvals, comms blast launcher (templates + targeting + dry-run), engagement stats, social graph views, and manual WhatsApp override/sent-log viewer.
@@ -36,19 +36,6 @@
 - Which email provider to use: Resend
 - Required geographies/compliance: CCPA
 - For groups/intros, is manual moderator acceptable, or is an automated bot in the group mandatory: ideally automated
-
-## Next Steps for M1 Foundations
-
-- Observability/Runbooks: Standardize structured logs for inbound/outbound/typing/send errors with correlation IDs (MessageSid, WaId, chatId); add tracing spans/tags for Twilio calls and LLM calls; define log-based alerts for elevated send failures or processing errors. Draft a short runbook: how to rotate creds, re-drive failed sends, and verify webhook health.
-- Testing Plan: Add unit tests for signature validation, number normalization, session gating, and send payload shaping (buttons/location/media). Document a manual test checklist (Twilio sandbox) for text, media, and typing indicator.
-
-### Acceptance for M1
-
-- Webhook rejects invalid signatures and logs the attempt.
-- Inbound → outbound happy path works with sandbox, including media and typing indicator.
-- Failures are logged with actionable detail and do not drop processing silently.
-- Rate/timeout/retry limits are in place and documented.
-- Runbook and env config doc are written; tests cover the critical paths.
 
 ## Decisions
 
