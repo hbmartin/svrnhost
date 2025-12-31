@@ -9,7 +9,7 @@ import { useDataStream } from "./data-stream-provider";
 import { Greeting } from "./greeting";
 import { PreviewMessage, ThinkingMessage } from "./message";
 
-type MessagesProps = {
+interface MessagesProps {
 	chatId: string;
 	status: UseChatHelpers<ChatMessage>["status"];
 	votes: Vote[] | undefined;
@@ -18,7 +18,7 @@ type MessagesProps = {
 	regenerate: UseChatHelpers<ChatMessage>["regenerate"];
 	isReadonly: boolean;
 	selectedModelId: string;
-};
+}
 
 function PureMessages({
 	chatId,

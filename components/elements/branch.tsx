@@ -7,14 +7,14 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-type BranchContextType = {
+interface BranchContextType {
 	currentBranch: number;
 	totalBranches: number;
 	goToPrevious: () => void;
 	goToNext: () => void;
 	branches: ReactElement[];
 	setBranches: (branches: ReactElement[]) => void;
-};
+}
 
 const BranchContext = createContext<BranchContextType | null>(null);
 

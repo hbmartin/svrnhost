@@ -34,7 +34,7 @@ const DEFAULT_CONFIG = {
 };
 
 export class TokenBucketRateLimiter {
-	private buckets: Map<string, BucketState> = new Map();
+	private readonly buckets: Map<string, BucketState> = new Map();
 	private readonly tokensPerSecond: number;
 	private readonly bucketSize: number;
 	private readonly cleanupAfterMs: number;

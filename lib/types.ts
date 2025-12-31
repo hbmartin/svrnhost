@@ -5,7 +5,10 @@ import type { listUpcomingEvents } from "./ai/tools/list-upcoming-events";
 import type { Suggestion } from "./db/schema";
 import type { AppUsage } from "./usage";
 
-export type DataPart = { type: "append-message"; message: string };
+export interface DataPart {
+	type: "append-message";
+	message: string;
+}
 
 export const messageMetadataSchema = z.object({
 	createdAt: z.string(),
@@ -16,12 +19,12 @@ export type MessageMetadata = z.infer<typeof messageMetadataSchema>;
 type weatherTool = InferUITool<typeof getWeather>;
 type listUpcomingEventsTool = InferUITool<typeof listUpcomingEvents>;
 
-export type ChatTools = {
+export interface ChatTools {
 	getWeather: weatherTool;
 	listUpcomingEvents: listUpcomingEventsTool;
-};
+}
 
-export type CustomUIDataTypes = {
+export interface CustomUIDataTypes {
 	textDelta: string;
 	imageDelta: string;
 	sheetDelta: string;
@@ -33,7 +36,7 @@ export type CustomUIDataTypes = {
 	clear: null;
 	finish: null;
 	usage: AppUsage;
-};
+}
 
 export type ChatMessage = UIMessage<
 	MessageMetadata,
@@ -41,8 +44,8 @@ export type ChatMessage = UIMessage<
 	ChatTools
 >;
 
-export type Attachment = {
+export interface Attachment {
 	name: string;
 	url: string;
 	contentType: string;
-};
+}

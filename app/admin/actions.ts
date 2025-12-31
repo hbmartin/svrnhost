@@ -7,7 +7,7 @@ import { createUser, getUser, getUserByPhone } from "@/lib/db/queries";
 
 import { auth } from "../(auth)/auth";
 
-export type AddUserActionState = {
+export interface AddUserActionState {
 	status:
 		| "idle"
 		| "success"
@@ -16,7 +16,7 @@ export type AddUserActionState = {
 		| "user_exists"
 		| "phone_exists"
 		| "forbidden";
-};
+}
 
 /**
  * E.164 phone number validation regex.

@@ -158,8 +158,12 @@ export async function withRetry<T>(
  * Not retryable: 4xx (client errors except 429)
  */
 export function isRetryableHttpStatus(status: number): boolean {
-	if (status === 429) return true; // Rate limited
-	if (status >= 500 && status < 600) return true; // Server errors
+	if (status === 429) {
+		return true; // Rate limited
+	}
+	if (status >= 500 && status < 600) {
+		return true; // Server errors
+	}
 	return false;
 }
 

@@ -80,7 +80,7 @@ const CloudIcon = ({ size = 24 }: { size?: number }) => (
 	</svg>
 );
 
-type WeatherAtLocation = {
+interface WeatherAtLocation {
 	latitude: number;
 	longitude: number;
 	generationtime_ms: number;
@@ -117,7 +117,7 @@ type WeatherAtLocation = {
 		sunrise: string[];
 		sunset: string[];
 	};
-};
+}
 
 const SAMPLE = {
 	latitude: 37.763_283,

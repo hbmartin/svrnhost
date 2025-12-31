@@ -9,9 +9,9 @@ const authFormSchema = z.object({
 	password: z.string().min(6),
 });
 
-export type LoginActionState = {
+export interface LoginActionState {
 	status: "idle" | "in_progress" | "success" | "failed" | "invalid_data";
-};
+}
 
 export const login = async (
 	_: LoginActionState,
@@ -39,7 +39,7 @@ export const login = async (
 	}
 };
 
-export type RegisterActionState = {
+export interface RegisterActionState {
 	status:
 		| "idle"
 		| "in_progress"
@@ -47,4 +47,4 @@ export type RegisterActionState = {
 		| "failed"
 		| "user_exists"
 		| "invalid_data";
-};
+}

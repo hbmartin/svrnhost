@@ -6,10 +6,10 @@ import { memo } from "react";
 import type { ChatMessage } from "@/lib/types";
 import { Suggestion } from "./elements/suggestion";
 
-type SuggestedActionsProps = {
+interface SuggestedActionsProps {
 	chatId: string;
 	sendMessage: UseChatHelpers<ChatMessage>["sendMessage"];
-};
+}
 
 function PureSuggestedActions({ chatId, sendMessage }: SuggestedActionsProps) {
 	const suggestedActions = [
