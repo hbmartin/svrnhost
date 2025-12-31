@@ -59,15 +59,15 @@ function sleep(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/**
- * Execute a function with retry logic and exponential backoff.
- *
- * @throws The last error if all retries are exhausted
- */
-export async function withRetry<T>(
-	fn: () => Promise<T>,
-	config: RetryConfig = {},
-): Promise<RetryResult<T>> {
+interface ValidatedRetryConfig {
+	maxAttempts: number;
+	baseDelayMs: number;
+	maxDelayMs: number;
+	shouldRetry: (error: unknown, attempt: number) => boolean;
+	context: string;
+}
+
+function validateRetryConfig(config: RetryConfig): ValidatedRetryConfig {
 	const maxAttempts = config.maxAttempts ?? DEFAULT_CONFIG.maxAttempts;
 	const baseDelayMs = config.baseDelayMs ?? DEFAULT_CONFIG.baseDelayMs;
 	const maxDelayMs = config.maxDelayMs ?? DEFAULT_CONFIG.maxDelayMs;
@@ -104,6 +104,61 @@ export async function withRetry<T>(
 		);
 	}
 
+	return { maxAttempts, baseDelayMs, maxDelayMs, shouldRetry, context };
+}
+
+function getErrorMessage(error: unknown): string {
+	return error instanceof Error ? error.message : String(error);
+}
+
+function handleLastAttemptFailure(
+	error: unknown,
+	attempts: number,
+	maxAttempts: number,
+	context: string,
+): void {
+	console.error(`[retry:${context}] all ${maxAttempts} attempts failed`, {
+		error: getErrorMessage(error),
+	});
+	attachAttemptsToError(error, attempts);
+}
+
+function handleNonRetryableError(
+	error: unknown,
+	attempts: number,
+	context: string,
+): void {
+	console.log(`[retry:${context}] error is not retryable, giving up`, {
+		attempt: attempts,
+		error: getErrorMessage(error),
+	});
+	attachAttemptsToError(error, attempts);
+}
+
+function logRetryAttempt(
+	attempts: number,
+	delayMs: number,
+	error: unknown,
+	context: string,
+): void {
+	console.log(
+		`[retry:${context}] attempt ${attempts} failed, retrying in ${Math.round(delayMs)}ms`,
+		{ error: getErrorMessage(error) },
+	);
+}
+
+/**
+ * Execute a function with retry logic and exponential backoff.
+ *
+ * @throws The last error if all retries are exhausted
+ */
+export async function withRetry<T>(
+	fn: () => Promise<T>,
+	config: RetryConfig = {},
+): Promise<RetryResult<T>> {
+	const { maxAttempts, baseDelayMs, maxDelayMs, shouldRetry, context } =
+		validateRetryConfig(config);
+
 	let lastError: unknown;
 
 	for (let attempt = 0; attempt < maxAttempts; attempt++) {
@@ -121,29 +176,17 @@ export async function withRetry<T>(
 			const isLastAttempt = attempt === maxAttempts - 1;
 
 			if (isLastAttempt) {
-				console.error(`[retry:${context}] all ${maxAttempts} attempts failed`, {
-					error: error instanceof Error ? error.message : String(error),
-				});
-				attachAttemptsToError(error, attempts);
+				handleLastAttemptFailure(error, attempts, maxAttempts, context);
 				break;
 			}
 
 			if (!shouldRetry(error, attempt)) {
-				console.log(`[retry:${context}] error is not retryable, giving up`, {
-					attempt: attempts,
-					error: error instanceof Error ? error.message : String(error),
-				});
-				attachAttemptsToError(error, attempts);
+				handleNonRetryableError(error, attempts, context);
 				break;
 			}
 
 			const delayMs = calculateDelay(attempt, baseDelayMs, maxDelayMs);
-			console.log(
-				`[retry:${context}] attempt ${attempts} failed, retrying in ${Math.round(delayMs)}ms`,
-				{
-					error: error instanceof Error ? error.message : String(error),
-				},
-			);
+			logRetryAttempt(attempts, delayMs, error, context);
 
 			await sleep(delayMs);
 		}

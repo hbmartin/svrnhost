@@ -5,33 +5,47 @@ import { isDevelopmentEnvironment } from "./lib/constants";
 const PUBLIC_ROUTES = new Set(["/login"]);
 const PUBLIC_FILE_EXTENSION_REGEX = /\.(?:ico|jpe?g|png|svg|gif|webp)$/i;
 
+function isPublicStaticAsset(pathname: string, isApiRoute: boolean): boolean {
+	return PUBLIC_FILE_EXTENSION_REGEX.test(pathname) && !isApiRoute;
+}
+
+function isExemptApiRoute(pathname: string): boolean {
+	return (
+		pathname.startsWith("/api/auth") ||
+		pathname.startsWith("/api/whatsapp") ||
+		pathname.startsWith("/api/sentry-test")
+	);
+}
+
+function buildLoginRedirectUrl(request: NextRequest): URL {
+	const loginUrl = new URL("/login", request.url);
+	const requestedPath = `${request.nextUrl.pathname}${request.nextUrl.search}`;
+
+	if (requestedPath && requestedPath !== "/login") {
+		loginUrl.searchParams.set("redirectUrl", requestedPath);
+	}
+
+	return loginUrl;
+}
+
+function getAuthenticatedRedirectTarget(request: NextRequest): string {
+	const redirectParam = request.nextUrl.searchParams.get("redirectUrl");
+	return redirectParam?.startsWith("/") ? redirectParam : "/";
+}
+
 export async function proxy(request: NextRequest) {
 	const { pathname } = request.nextUrl;
 	const isApiRoute = pathname.startsWith("/api");
 
-	// Allow common static assets to be served without authentication unless the
-	// request targets the API surface.
-	if (PUBLIC_FILE_EXTENSION_REGEX.test(pathname) && !isApiRoute) {
+	if (isPublicStaticAsset(pathname, isApiRoute)) {
 		return NextResponse.next();
 	}
 
-	/*
-	 * Playwright starts the dev server and requires a 200 status to
-	 * begin the tests, so this ensures that the tests can start
-	 */
 	if (pathname.startsWith("/ping")) {
 		return new Response("pong", { status: 200 });
 	}
 
-	if (pathname.startsWith("/api/auth")) {
-		return NextResponse.next();
-	}
-
-	// Allow WhatsApp webhook (uses X-Twilio-Signature for auth)
-	if (
-		pathname.startsWith("/api/whatsapp") ||
-		pathname.startsWith("/api/sentry-test")
-	) {
+	if (isExemptApiRoute(pathname)) {
 		return NextResponse.next();
 	}
 
@@ -46,21 +60,11 @@ export async function proxy(request: NextRequest) {
 		if (PUBLIC_ROUTES.has(pathname)) {
 			return NextResponse.next();
 		}
-
-		const loginUrl = new URL("/login", request.url);
-		const requestedPath = `${request.nextUrl.pathname}${request.nextUrl.search}`;
-
-		if (requestedPath && requestedPath !== "/login") {
-			loginUrl.searchParams.set("redirectUrl", requestedPath);
-		}
-
-		return NextResponse.redirect(loginUrl);
+		return NextResponse.redirect(buildLoginRedirectUrl(request));
 	}
 
-	if (token && PUBLIC_ROUTES.has(pathname)) {
-		const redirectParam = request.nextUrl.searchParams.get("redirectUrl");
-		const redirectTarget = redirectParam?.startsWith("/") ? redirectParam : "/";
-
+	if (PUBLIC_ROUTES.has(pathname)) {
+		const redirectTarget = getAuthenticatedRedirectTarget(request);
 		return NextResponse.redirect(new URL(redirectTarget, request.url));
 	}
 
