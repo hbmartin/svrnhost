@@ -68,8 +68,8 @@ export function getStreamContext() {
 			globalStreamContext = createResumableStreamContext({
 				waitUntil: after,
 			});
-		} catch (error: any) {
-			if (error.message.includes("REDIS_URL")) {
+		} catch (error: unknown) {
+			if (error instanceof Error && error.message.includes("REDIS_URL")) {
 				console.log(
 					" > Resumable streams are disabled due to missing REDIS_URL",
 				);

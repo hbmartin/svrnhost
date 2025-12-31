@@ -23,6 +23,12 @@
 - M5 Social Graph & Intros: model connections, similarity signals, and attendance history; surface “friends attending” in event flows; design intro flow (email guaranteed, explore WhatsApp handoff with compliance) with admin approval queue.
 - M6 Admin Dashboard: CRUD/search for users/events, pending intro approvals, comms blast launcher (templates + targeting + dry-run), engagement stats, social graph views, and manual WhatsApp override/sent-log viewer.
 
+Agent should have:
+
+- explicit human-in-the-loop checkpoints
+- auditable decision logs
+- reversible tool actions
+
 ## Dependencies
 
 - Profiles precede templates/digests and power personalization, targeting, and social graph.

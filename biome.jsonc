@@ -3,19 +3,19 @@
 	"extends": ["ultracite/next"],
 	"files": {
 		"includes": [
-			"**/*",
+			"**",
 			"!components/ui",
-			"!lib/utils.ts",
-			"!hooks/use-mobile.ts"
-		],
-		"experimentalScannerIgnores": [".git", "node_modules", ".next"]
+			"!hooks/use-mobile.ts",
+			"!!.next",
+			"!!coverage",
+			"!!**/*.css",
+			"!!**/*.json",
+			"!!tests"
+		]
 	},
 	"linter": {
 		"rules": {
 			"suspicious": {
-				/* Needs more work to fix */
-				"noExplicitAny": "off",
-
 				/* Allow for Tailwind @ rules */
 				"noUnknownAtRules": "off",
 
@@ -27,21 +27,17 @@
 			},
 			"style": {
 				/* Allowing magic numbers */
-				"noMagicNumbers": "off",
-
-				/* Needs more work to fix */
-				"noNestedTernary": "off"
+				"noMagicNumbers": "off"
 			},
 			"nursery": {
 				/* Too many false positives */
 				"noUnnecessaryConditions": "off"
 			},
 			"complexity": {
-				/* Needs more work to fix */
-				"noExcessiveCognitiveComplexity": "off",
-
 				/* This one has false positives. It's a bit... iffy 😉 */
-				"useSimplifiedLogicExpression": "off"
+				"useSimplifiedLogicExpression": "off",
+				/* TypeScript requires bracket notation for index signatures */
+				"useLiteralKeys": "off"
 			},
 			"a11y": {
 				/* Needs more work to fix */
