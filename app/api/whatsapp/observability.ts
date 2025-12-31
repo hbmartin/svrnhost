@@ -1,10 +1,10 @@
 import type { Span } from "@opentelemetry/api";
+import type { Scope as SentryScope } from "@sentry/nextjs";
 import * as Sentry from "@sentry/nextjs";
 import { vercelEnv } from "@/lib/config/server";
 
 export type WhatsAppLogLevel = "info" | "warn" | "error";
 
-type SentryScope = NonNullable<Parameters<typeof Sentry.withScope>[0]>;
 export type WhatsAppDirection = "inbound" | "outbound" | "internal";
 
 export interface WhatsAppCorrelationIds {
@@ -25,28 +25,34 @@ export interface WhatsAppLogFields extends WhatsAppCorrelationIds {
 	details?: Record<string, unknown> | undefined;
 }
 
+const tagMappings: Partial<Record<keyof WhatsAppLogFields, string>> = {
+	direction: "whatsapp.direction",
+	status: "whatsapp.status",
+	messageSid: "whatsapp.message_sid",
+	waId: "whatsapp.wa_id",
+	chatId: "whatsapp.chat_id",
+};
+
 function setSentryScopeTags(
 	scope: SentryScope,
 	fields: WhatsAppLogFields,
 ): void {
 	scope.setTag("service", "whatsapp");
 	scope.setTag("whatsapp.event", fields.event);
-	if (fields.direction) {
-		scope.setTag("whatsapp.direction", fields.direction);
-	}
-	if (fields.status) {
-		scope.setTag("whatsapp.status", fields.status);
-	}
-	if (fields.messageSid) {
-		scope.setTag("whatsapp.message_sid", fields.messageSid);
-	}
-	if (fields.waId) {
-		scope.setTag("whatsapp.wa_id", fields.waId);
-	}
-	if (fields.chatId) {
-		scope.setTag("whatsapp.chat_id", fields.chatId);
+	for (const [field, tagName] of Object.entries(tagMappings)) {
+		const value = fields[field as keyof WhatsAppLogFields];
+		if (value) {
+			scope.setTag(tagName, value as string);
+		}
 	}
 }
+
+const extraFields: (keyof WhatsAppLogFields)[] = [
+	"requestUrl",
+	"fromNumber",
+	"toNumber",
+	"details",
+];
 
 function setSentryScopeExtras(
 	scope: SentryScope,
@@ -54,17 +60,12 @@ function setSentryScopeExtras(
 ): void {
 	scope.setExtra("nodeEnv", process.env.NODE_ENV);
 	scope.setExtra("vercelEnv", vercelEnv);
-	if (fields.requestUrl) {
-		scope.setExtra("requestUrl", fields.requestUrl);
-	}
-	if (fields.fromNumber) {
-		scope.setExtra("fromNumber", fields.fromNumber);
-	}
-	if (fields.toNumber) {
-		scope.setExtra("toNumber", fields.toNumber);
-	}
-	if (fields.details) {
-		scope.setExtra("details", fields.details);
+
+	for (const field of extraFields) {
+		const value = fields[field];
+		if (value) {
+			scope.setExtra(field, value);
+		}
 	}
 }
 
