@@ -45,6 +45,36 @@ const UNREGISTERED_USER_RESPONSE =
 	"Thanks for reaching out! This service is currently available to registered users only. " +
 	"Please contact contact@svrnventures.com to get started.";
 
+async function notifyUnregisteredUser(
+	client: TwilioClient,
+	normalizedFrom: string,
+	whatsappFrom: string | null,
+	correlation: WhatsAppCorrelationIds,
+): Promise<void> {
+	try {
+		await sendWhatsAppMessageWithRetry({
+			client,
+			to: normalizedFrom,
+			from: whatsappFrom ? normalizeWhatsAppNumber(whatsappFrom) : undefined,
+			response: UNREGISTERED_USER_RESPONSE,
+			correlation,
+		});
+		logWhatsAppEvent("info", {
+			event: "whatsapp.processing.unregistered_user_notified",
+			direction: "outbound",
+			...correlation,
+			toNumber: normalizedFrom,
+		});
+	} catch (sendError) {
+		logWhatsAppEvent("error", {
+			event: "whatsapp.processing.unregistered_user_notify_failed",
+			direction: "outbound",
+			...correlation,
+			error: sendError instanceof Error ? sendError.message : String(sendError),
+		});
+	}
+}
+
 export async function processWhatsAppMessage({
 	payload,
 	requestUrl,
@@ -171,31 +201,12 @@ async function receiveTwilioAndGenerateResponseAndSend({
 			details: { normalizedFrom },
 		});
 
-		// Send a helpful message to unregistered users
-		try {
-			await sendWhatsAppMessageWithRetry({
-				client,
-				to: normalizedFrom,
-				from: whatsappFrom ? normalizeWhatsAppNumber(whatsappFrom) : undefined,
-				response: UNREGISTERED_USER_RESPONSE,
-				correlation,
-			});
-			logWhatsAppEvent("info", {
-				event: "whatsapp.processing.unregistered_user_notified",
-				direction: "outbound",
-				...correlation,
-				toNumber: normalizedFrom,
-			});
-		} catch (sendError) {
-			logWhatsAppEvent("error", {
-				event: "whatsapp.processing.unregistered_user_notify_failed",
-				direction: "outbound",
-				...correlation,
-				error:
-					sendError instanceof Error ? sendError.message : String(sendError),
-			});
-		}
-
+		await notifyUnregisteredUser(
+			client,
+			normalizedFrom,
+			whatsappFrom,
+			correlation,
+		);
 		throw new Error(`User not found for phone: ${normalizedFrom}`);
 	}
 

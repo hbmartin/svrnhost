@@ -325,6 +325,50 @@ export function chunkMessageByNewlines(
 	return chunks.filter((chunk) => chunk.length > 0);
 }
 
+function logChunkingInfo(
+	response: string,
+	chunks: string[],
+	to: string,
+	correlation?: WhatsAppCorrelationIds,
+): void {
+	if (chunks.length > 1) {
+		logWhatsAppEvent("info", {
+			event: "whatsapp.outbound.chunking",
+			direction: "outbound",
+			...correlation,
+			toNumber: to,
+			details: {
+				originalLength: response.length,
+				chunkCount: chunks.length,
+			},
+		});
+	}
+}
+
+function logRetryInfo(
+	attempts: number,
+	chunkIndex: number,
+	totalChunks: number,
+	resultSid: string,
+	to: string,
+	correlation?: WhatsAppCorrelationIds,
+): void {
+	if (attempts > 1) {
+		logWhatsAppEvent("warn", {
+			event: "whatsapp.outbound.send_retried",
+			direction: "outbound",
+			...correlation,
+			toNumber: to,
+			details: {
+				attempts,
+				outboundMessageSid: resultSid,
+				chunkIndex: totalChunks > 1 ? chunkIndex + 1 : undefined,
+				totalChunks: totalChunks > 1 ? totalChunks : undefined,
+			},
+		});
+	}
+}
+
 async function sendSingleMessageWithRateLimitAndRetry(
 	params: SendMessageParams,
 ): Promise<{ result: SendMessageResult; attempts: number }> {
@@ -386,29 +430,11 @@ export async function sendWhatsAppMessageWithRetry(
 		WHATSAPP_LIMITS.maxMessageLength,
 	);
 
-	if (chunks.length > 1) {
-		logWhatsAppEvent("info", {
-			event: "whatsapp.outbound.chunking",
-			direction: "outbound",
-			...correlation,
-			toNumber: to,
-			details: {
-				originalLength: response.length,
-				chunkCount: chunks.length,
-			},
-		});
-	}
+	logChunkingInfo(response, chunks, to, correlation);
 
 	const results: SendMessageResult[] = [];
-	let chunkIndex = 0;
 
-	for (const chunk of chunks) {
-		// Skip empty chunks
-		if (chunk.length === 0) {
-			continue;
-		}
-
-		// Add delay between chunks (not before the first one)
+	for (const [chunkIndex, chunk] of chunks.entries()) {
 		if (results.length > 0) {
 			await sleep(WHATSAPP_LIMITS.chunkDelayMs);
 		}
@@ -421,23 +447,15 @@ export async function sendWhatsAppMessageWithRetry(
 		const { result, attempts } =
 			await sendSingleMessageWithRateLimitAndRetry(chunkParams);
 
-		if (attempts > 1) {
-			logWhatsAppEvent("warn", {
-				event: "whatsapp.outbound.send_retried",
-				direction: "outbound",
-				...correlation,
-				toNumber: to,
-				details: {
-					attempts,
-					outboundMessageSid: result.sid,
-					chunkIndex: chunks.length > 1 ? chunkIndex + 1 : undefined,
-					totalChunks: chunks.length > 1 ? chunks.length : undefined,
-				},
-			});
-		}
-
+		logRetryInfo(
+			attempts,
+			chunkIndex,
+			chunks.length,
+			result.sid,
+			to,
+			correlation,
+		);
 		results.push(result);
-		chunkIndex++;
 	}
 
 	const lastResult = results.at(-1);

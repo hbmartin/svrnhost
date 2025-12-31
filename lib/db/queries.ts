@@ -580,7 +580,7 @@ export async function createPendingWebhookLog(entry: {
 	}
 }
 
-export async function upsertWebhookLogByMessageSid(entry: {
+interface WebhookLogEntry {
 	source: string;
 	messageSid: string;
 	direction?: string | null | undefined;
@@ -590,36 +590,51 @@ export async function upsertWebhookLogByMessageSid(entry: {
 	toNumber?: string | null | undefined;
 	payload?: Record<string, unknown> | null | undefined;
 	error?: string | null | undefined;
-}) {
+}
+
+function buildWebhookLogUpdates(
+	entry: WebhookLogEntry,
+): Partial<typeof webhookLog.$inferInsert> {
 	const updates: Partial<typeof webhookLog.$inferInsert> = {};
+	const fields = [
+		"direction",
+		"status",
+		"requestUrl",
+		"fromNumber",
+		"toNumber",
+		"payload",
+		"error",
+	] as const;
 
-	if (entry.direction !== undefined) {
-		updates.direction = entry.direction ?? null;
+	for (const field of fields) {
+		if (entry[field] !== undefined) {
+			// biome-ignore lint/suspicious/noExplicitAny: dynamic field assignment
+			(updates as any)[field] = entry[field] ?? null;
+		}
 	}
 
-	if (entry.status !== undefined) {
-		updates.status = entry.status ?? null;
-	}
+	return updates;
+}
 
-	if (entry.requestUrl !== undefined) {
-		updates.requestUrl = entry.requestUrl ?? null;
-	}
+function buildWebhookLogInsertValues(
+	entry: WebhookLogEntry,
+): typeof webhookLog.$inferInsert {
+	return {
+		source: entry.source,
+		direction: entry.direction ?? null,
+		status: entry.status ?? null,
+		requestUrl: entry.requestUrl ?? null,
+		messageSid: entry.messageSid,
+		fromNumber: entry.fromNumber ?? null,
+		toNumber: entry.toNumber ?? null,
+		payload: entry.payload ?? null,
+		error: entry.error ?? null,
+		createdAt: new Date(),
+	};
+}
 
-	if (entry.fromNumber !== undefined) {
-		updates.fromNumber = entry.fromNumber ?? null;
-	}
-
-	if (entry.toNumber !== undefined) {
-		updates.toNumber = entry.toNumber ?? null;
-	}
-
-	if (entry.payload !== undefined) {
-		updates.payload = entry.payload ?? null;
-	}
-
-	if (entry.error !== undefined) {
-		updates.error = entry.error ?? null;
-	}
+export async function upsertWebhookLogByMessageSid(entry: WebhookLogEntry) {
+	const updates = buildWebhookLogUpdates(entry);
 
 	if (Object.keys(updates).length === 0) {
 		return null;
@@ -628,18 +643,7 @@ export async function upsertWebhookLogByMessageSid(entry: {
 	try {
 		const [log] = await db
 			.insert(webhookLog)
-			.values({
-				source: entry.source,
-				direction: entry.direction ?? null,
-				status: entry.status ?? null,
-				requestUrl: entry.requestUrl ?? null,
-				messageSid: entry.messageSid,
-				fromNumber: entry.fromNumber ?? null,
-				toNumber: entry.toNumber ?? null,
-				payload: entry.payload ?? null,
-				error: entry.error ?? null,
-				createdAt: new Date(),
-			})
+			.values(buildWebhookLogInsertValues(entry))
 			.onConflictDoUpdate({
 				target: webhookLog.messageSid,
 				set: updates,

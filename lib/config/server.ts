@@ -69,6 +69,24 @@ export interface AiConfig {
 let cachedTwilioConfig: TwilioConfig | null = null;
 let cachedAiConfig: AiConfig | null = null;
 
+function getMissingTwilioFields(
+	accountSid: string | undefined,
+	authToken: string | undefined,
+	whatsappWebhookUrl: string | undefined,
+): string[] {
+	const missing: string[] = [];
+	if (!accountSid) {
+		missing.push("TWILIO_ACCOUNT_SID");
+	}
+	if (!authToken) {
+		missing.push("TWILIO_AUTH_TOKEN");
+	}
+	if (!whatsappWebhookUrl) {
+		missing.push("TWILIO_WHATSAPP_WEBHOOK_URL");
+	}
+	return missing;
+}
+
 export function getTwilioConfig(): TwilioConfig {
 	if (cachedTwilioConfig) {
 		return cachedTwilioConfig;
@@ -78,19 +96,12 @@ export function getTwilioConfig(): TwilioConfig {
 	const authToken = env.TWILIO_AUTH_TOKEN;
 	const whatsappWebhookUrl = env.TWILIO_WHATSAPP_WEBHOOK_URL;
 
-	// Always fail fast for core required fields - empty strings cause cryptic SDK errors
 	if (!(accountSid && authToken && whatsappWebhookUrl)) {
-		const requiredMissing: string[] = [];
-		if (!accountSid) {
-			requiredMissing.push("TWILIO_ACCOUNT_SID");
-		}
-		if (!authToken) {
-			requiredMissing.push("TWILIO_AUTH_TOKEN");
-		}
-		if (!whatsappWebhookUrl) {
-			requiredMissing.push("TWILIO_WHATSAPP_WEBHOOK_URL");
-		}
-
+		const requiredMissing = getMissingTwilioFields(
+			accountSid,
+			authToken,
+			whatsappWebhookUrl,
+		);
 		throw new Error(
 			`Missing required Twilio configuration: ${requiredMissing.join(", ")}. ` +
 				"Set these environment variables or check your test setup.",

@@ -1,7 +1,7 @@
 "use client";
 import type { UseChatHelpers } from "@ai-sdk/react";
 import equal from "fast-deep-equal";
-import { memo, useState } from "react";
+import { type Dispatch, memo, type SetStateAction, useState } from "react";
 import type { Vote } from "@/lib/db/schema";
 import type { ChatMessage } from "@/lib/types";
 import { cn, sanitizeText } from "@/lib/utils";
@@ -21,6 +21,88 @@ import { MessageEditor } from "./message-editor";
 import { MessageReasoning } from "./message-reasoning";
 import { PreviewAttachment } from "./preview-attachment";
 import { Weather } from "./weather";
+
+function renderReasoningPart(
+	part: Extract<ChatMessage["parts"][number], { type: "reasoning" }>,
+	partKey: string,
+	isLoading: boolean,
+): React.ReactNode {
+	if (!part.text?.trim().length) {
+		return null;
+	}
+	return (
+		<MessageReasoning
+			isLoading={isLoading}
+			key={partKey}
+			reasoning={part.text}
+		/>
+	);
+}
+
+function renderTextPartView(
+	part: Extract<ChatMessage["parts"][number], { type: "text" }>,
+	partKey: string,
+	role: ChatMessage["role"],
+): React.ReactNode {
+	return (
+		<div key={partKey}>
+			<MessageContent
+				className={cn({
+					"w-fit break-words rounded-2xl px-3 py-2 text-right text-white":
+						role === "user",
+					"bg-transparent px-0 py-0 text-left": role === "assistant",
+				})}
+				data-testid="message-content"
+				style={role === "user" ? { backgroundColor: "#006cff" } : undefined}
+			>
+				<Response>{sanitizeText(part.text)}</Response>
+			</MessageContent>
+		</div>
+	);
+}
+
+function renderTextPartEdit(
+	partKey: string,
+	message: ChatMessage,
+	setMessages: UseChatHelpers<ChatMessage>["setMessages"],
+	regenerate: UseChatHelpers<ChatMessage>["regenerate"],
+	setMode: Dispatch<SetStateAction<"view" | "edit">>,
+): React.ReactNode {
+	return (
+		<div className="flex w-full flex-row items-start gap-3" key={partKey}>
+			<div className="size-8" />
+			<div className="min-w-0 flex-1">
+				<MessageEditor
+					key={message.id}
+					message={message}
+					regenerate={regenerate}
+					setMessages={setMessages}
+					setMode={setMode}
+				/>
+			</div>
+		</div>
+	);
+}
+
+function renderWeatherToolPart(
+	part: Extract<ChatMessage["parts"][number], { type: "tool-getWeather" }>,
+): React.ReactNode {
+	const { toolCallId, state } = part;
+	return (
+		<Tool defaultOpen={true} key={toolCallId}>
+			<ToolHeader state={state} type="tool-getWeather" />
+			<ToolContent>
+				{state === "input-available" && <ToolInput input={part.input} />}
+				{state === "output-available" && (
+					<ToolOutput
+						errorText={undefined}
+						output={<Weather weatherAtLocation={part.output} />}
+					/>
+				)}
+			</ToolContent>
+		</Tool>
+	);
+}
 
 const PurePreviewMessage = ({
 	chatId,
@@ -104,80 +186,27 @@ const PurePreviewMessage = ({
 						const { type } = part;
 						const key = `message-${message.id}-part-${index}`;
 
-						if (type === "reasoning" && part.text?.trim().length > 0) {
-							return (
-								<MessageReasoning
-									isLoading={isLoading}
-									key={key}
-									reasoning={part.text}
-								/>
-							);
+						if (type === "reasoning") {
+							return renderReasoningPart(part, key, isLoading);
 						}
 
 						if (type === "text") {
 							if (mode === "view") {
-								return (
-									<div key={key}>
-										<MessageContent
-											className={cn({
-												"w-fit break-words rounded-2xl px-3 py-2 text-right text-white":
-													message.role === "user",
-												"bg-transparent px-0 py-0 text-left":
-													message.role === "assistant",
-											})}
-											data-testid="message-content"
-											style={
-												message.role === "user"
-													? { backgroundColor: "#006cff" }
-													: undefined
-											}
-										>
-											<Response>{sanitizeText(part.text)}</Response>
-										</MessageContent>
-									</div>
-								);
+								return renderTextPartView(part, key, message.role);
 							}
-
 							if (mode === "edit") {
-								return (
-									<div
-										className="flex w-full flex-row items-start gap-3"
-										key={key}
-									>
-										<div className="size-8" />
-										<div className="min-w-0 flex-1">
-											<MessageEditor
-												key={message.id}
-												message={message}
-												regenerate={regenerate}
-												setMessages={setMessages}
-												setMode={setMode}
-											/>
-										</div>
-									</div>
+								return renderTextPartEdit(
+									key,
+									message,
+									setMessages,
+									regenerate,
+									setMode,
 								);
 							}
 						}
 
 						if (type === "tool-getWeather") {
-							const { toolCallId, state } = part;
-
-							return (
-								<Tool defaultOpen={true} key={toolCallId}>
-									<ToolHeader state={state} type="tool-getWeather" />
-									<ToolContent>
-										{state === "input-available" && (
-											<ToolInput input={part.input} />
-										)}
-										{state === "output-available" && (
-											<ToolOutput
-												errorText={undefined}
-												output={<Weather weatherAtLocation={part.output} />}
-											/>
-										)}
-									</ToolContent>
-								</Tool>
-							);
+							return renderWeatherToolPart(part);
 						}
 
 						return null;
