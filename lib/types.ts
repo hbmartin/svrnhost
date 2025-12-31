@@ -19,10 +19,11 @@ export type MessageMetadata = z.infer<typeof messageMetadataSchema>;
 type weatherTool = InferUITool<typeof getWeather>;
 type listUpcomingEventsTool = InferUITool<typeof listUpcomingEvents>;
 
-export interface ChatTools {
+// biome-ignore lint/style/useConsistentTypeDefinitions: required for UITools constraint
+export type ChatTools = {
 	getWeather: weatherTool;
 	listUpcomingEvents: listUpcomingEventsTool;
-}
+};
 
 // biome-ignore lint/style/useConsistentTypeDefinitions: required for build
 export type CustomUIDataTypes = {

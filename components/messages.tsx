@@ -28,7 +28,6 @@ function PureMessages({
 	setMessages,
 	regenerate,
 	isReadonly,
-	selectedModelId: _selectedModelId,
 }: MessagesProps) {
 	const {
 		containerRef: messagesContainerRef,
