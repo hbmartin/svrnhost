@@ -30,7 +30,7 @@ export interface RateLimiterConfig {
 const DEFAULT_CONFIG = {
 	tokensPerSecond: 80,
 	bucketSize: 80,
-	cleanupAfterMs: 300000, // 5 minutes
+	cleanupAfterMs: 300_000, // 5 minutes
 };
 
 export class TokenBucketRateLimiter {
@@ -64,14 +64,14 @@ export class TokenBucketRateLimiter {
 	private getBucket(key: string, now: number): BucketState {
 		let bucket = this.buckets.get(key);
 
-		if (!bucket) {
+		if (bucket) {
+			this.refillBucket(bucket, now);
+		} else {
 			bucket = {
 				tokens: this.bucketSize, // Start with full bucket
 				lastRefill: now,
 			};
 			this.buckets.set(key, bucket);
-		} else {
-			this.refillBucket(bucket, now);
 		}
 
 		return bucket;

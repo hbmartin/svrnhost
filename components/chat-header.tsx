@@ -28,7 +28,7 @@ function PureChatHeader({
 			data-chat-id={chatId}
 			id={`chat-${chatId}-header`}
 		>
-			<span className="text-base font-semibold tracking-tight">
+			<span className="font-semibold text-base tracking-tight">
 				SVRN AI Studio
 			</span>
 			{mounted ? (

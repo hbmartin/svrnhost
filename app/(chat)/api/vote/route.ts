@@ -42,7 +42,7 @@ export async function PATCH(request: Request) {
 	}: { chatId: string; messageId: string; type: "up" | "down" } =
 		await request.json();
 
-	if (!chatId || !messageId || !type) {
+	if (!(chatId && messageId && type)) {
 		return new ChatSDKError(
 			"bad_request:api",
 			"Parameters chatId, messageId, and type are required.",

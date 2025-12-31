@@ -79,7 +79,7 @@ export function getTwilioConfig(): TwilioConfig {
 	const whatsappWebhookUrl = env.TWILIO_WHATSAPP_WEBHOOK_URL;
 
 	// Always fail fast for core required fields - empty strings cause cryptic SDK errors
-	if (!accountSid || !authToken || !whatsappWebhookUrl) {
+	if (!(accountSid && authToken && whatsappWebhookUrl)) {
 		const requiredMissing: string[] = [];
 		if (!accountSid) requiredMissing.push("TWILIO_ACCOUNT_SID");
 		if (!authToken) requiredMissing.push("TWILIO_AUTH_TOKEN");

@@ -31,7 +31,7 @@ export interface RetryResult<T> {
 const DEFAULT_CONFIG: Required<Omit<RetryConfig, "shouldRetry" | "context">> = {
 	maxAttempts: 3,
 	baseDelayMs: 1000,
-	maxDelayMs: 30000,
+	maxDelayMs: 30_000,
 };
 
 function attachAttemptsToError(error: unknown, attempts: number): void {

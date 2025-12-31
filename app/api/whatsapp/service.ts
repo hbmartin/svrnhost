@@ -139,7 +139,7 @@ async function receiveTwilioAndGenerateResponseAndSend({
 	const client = createTwilioClient();
 	const { whatsappFrom, messagingServiceSid } = getTwilioConfig();
 
-	if (!whatsappFrom && !messagingServiceSid) {
+	if (!(whatsappFrom || messagingServiceSid)) {
 		throw new Error(
 			"TWILIO_WHATSAPP_FROM or TWILIO_MESSAGING_SERVICE_SID is required",
 		);
