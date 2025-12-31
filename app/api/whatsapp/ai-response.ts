@@ -1,3 +1,4 @@
+/** biome-ignore-all lint/suspicious/useAwait: tracing */
 import { SpanStatusCode, trace } from "@opentelemetry/api";
 import { convertToModelMessages, generateText } from "ai";
 import { myProvider } from "@/lib/ai/providers";

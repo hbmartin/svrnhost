@@ -11,9 +11,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-type CodeBlockContextType = {
+interface CodeBlockContextType {
 	code: string;
-};
+}
 
 const CodeBlockContext = createContext<CodeBlockContextType>({
 	code: "",

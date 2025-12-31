@@ -1,3 +1,4 @@
+/** biome-ignore-all lint/suspicious/useAwait: tracing */
 import type { AIFailureType } from "@/lib/ai/safety";
 import {
 	createPendingWebhookLog,

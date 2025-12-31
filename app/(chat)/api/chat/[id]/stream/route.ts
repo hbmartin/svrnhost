@@ -63,6 +63,7 @@ export async function GET(
 	}
 
 	const emptyDataStream = createUIMessageStream<ChatMessage>({
+		// biome-ignore lint/suspicious/noEmptyBlockStatements: chat stream
 		execute: () => {},
 	});
 

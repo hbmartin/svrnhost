@@ -23,7 +23,7 @@ export const WHATSAPP_LIMITS = {
 	retry: {
 		maxAttempts: 3,
 		baseDelayMs: 1000,
-		maxDelayMs: 30000,
+		maxDelayMs: 30_000,
 	},
 	/** Twilio client automatic retry count for 429 responses. */
 	twilioAutoRetryMaxRetries: 3,

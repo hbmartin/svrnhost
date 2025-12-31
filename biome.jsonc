@@ -1,48 +1,39 @@
 {
-	"$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
-	"extends": ["ultracite/next"],
-	"files": {
-		"includes": [
-			"**",
-			"!components/ui",
-			"!hooks/use-mobile.ts",
-			"!!.next",
-			"!!coverage",
-			"!!**/*.css",
-			"!!**/*.json",
-			"!!tests"
-		]
-	},
-	"linter": {
-		"rules": {
-			"suspicious": {
-				/* Allow for Tailwind @ rules */
-				"noUnknownAtRules": "off",
-
-				/* Allowing console for debugging */
-				"noConsole": "off",
-
-				/* Needed for generateUUID() */
-				"noBitwiseOperators": "off"
-			},
-			"style": {
-				/* Allowing magic numbers */
-				"noMagicNumbers": "off"
-			},
-			"nursery": {
-				/* Too many false positives */
-				"noUnnecessaryConditions": "off"
-			},
-			"complexity": {
-				/* This one has false positives. It's a bit... iffy 😉 */
-				"useSimplifiedLogicExpression": "off",
-				/* TypeScript requires bracket notation for index signatures */
-				"useLiteralKeys": "off"
-			},
-			"a11y": {
-				/* Needs more work to fix */
-				"noSvgWithoutTitle": "off"
-			}
-		}
-	}
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "extends": ["ultracite/core", "ultracite/react", "ultracite/next"],
+  "files": {
+    "includes": [
+      "!components/ui",
+      "!.next",
+      "!!coverage",
+      "!!**/*.css",
+      "!!**/*.json",
+      "!!tests"
+    ]
+  },
+  "linter": {
+    "rules": {
+      "suspicious": {
+        /* Allowing console for debugging */
+        "noConsole": "off"
+      },
+      "complexity": {
+        /* TypeScript requires bracket notation for index signatures */
+        "useLiteralKeys": "off"
+      },
+      "a11y": {
+        /* Needs more work to fix */
+        "noSvgWithoutTitle": "off"
+      },
+      "performance": {
+        "noNamespaceImport": "off"
+      }
+    }
+  },
+  "javascript": {
+    "formatter": {
+      "indentStyle": "tab",
+      "trailingCommas": "all"
+    }
+  }
 }

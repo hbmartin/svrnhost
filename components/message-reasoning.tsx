@@ -7,10 +7,10 @@ import {
 	ReasoningTrigger,
 } from "./elements/reasoning";
 
-type MessageReasoningProps = {
+interface MessageReasoningProps {
 	isLoading: boolean;
 	reasoning: string;
-};
+}
 
 export function MessageReasoning({
 	isLoading,

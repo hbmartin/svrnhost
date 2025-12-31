@@ -38,7 +38,8 @@ export function logWhatsAppEvent(
 	const logger =
 		level === "error"
 			? console.error
-			: level === "warn"
+			: // biome-ignore lint/style/noNestedTernary: console
+				level === "warn"
 				? console.warn
 				: console.log;
 

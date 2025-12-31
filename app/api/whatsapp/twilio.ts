@@ -1,3 +1,4 @@
+/** biome-ignore-all lint/suspicious/useAwait: tracing */
 import { SpanStatusCode, trace } from "@opentelemetry/api";
 import twilio, { RestException } from "twilio";
 import type { MessageListInstanceCreateOptions } from "twilio/lib/rest/api/v2010/account/message";
@@ -82,15 +83,15 @@ export async function sendTypingIndicator(
 		chatId: correlation?.chatId,
 	};
 
-	if (!conversationSid || !agentIdentity) {
+	if (!(conversationSid && agentIdentity)) {
 		logWhatsAppEvent("info", {
 			event: "whatsapp.typing.skipped",
 			direction: "outbound",
 			...resolvedCorrelation,
 			details: {
-				reason: !conversationSid
-					? "missing_conversation_sid"
-					: "missing_agent_identity",
+				reason: conversationSid
+					? "missing_agent_identity"
+					: "missing_conversation_sid",
 			},
 		});
 		return;

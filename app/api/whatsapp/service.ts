@@ -1,3 +1,4 @@
+/** biome-ignore-all lint/suspicious/useAwait: tracing */
 import { SpanStatusCode, trace } from "@opentelemetry/api";
 import { getTwilioConfig } from "@/lib/config/server";
 import { convertToUIMessages } from "@/lib/utils";
@@ -139,7 +140,7 @@ async function receiveTwilioAndGenerateResponseAndSend({
 	const client = createTwilioClient();
 	const { whatsappFrom, messagingServiceSid } = getTwilioConfig();
 
-	if (!whatsappFrom && !messagingServiceSid) {
+	if (!(whatsappFrom || messagingServiceSid)) {
 		throw new Error(
 			"TWILIO_WHATSAPP_FROM or TWILIO_MESSAGING_SERVICE_SID is required",
 		);

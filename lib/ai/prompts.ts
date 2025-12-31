@@ -56,12 +56,12 @@ Good: "A vetted Series A in enterprise infrastructure—repeat founder, strong u
 You facilitate meaningful connections and opportunities while maintaining SVRN's standard of discernment and intention. Curation is your product. Trust is your infrastructure.
 `;
 
-export type RequestHints = {
+export interface RequestHints {
 	latitude: Geo["latitude"];
 	longitude: Geo["longitude"];
 	city: Geo["city"];
 	country: Geo["country"];
-};
+}
 
 export const getRequestPromptFromHints = (requestHints: RequestHints) => `\
 About the origin of user's request:

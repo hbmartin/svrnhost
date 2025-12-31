@@ -15,12 +15,12 @@ import { getTextFromMessage } from "@/lib/utils";
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
 
-export type MessageEditorProps = {
+export interface MessageEditorProps {
 	message: ChatMessage;
 	setMode: Dispatch<SetStateAction<"view" | "edit">>;
 	setMessages: UseChatHelpers<ChatMessage>["setMessages"];
 	regenerate: UseChatHelpers<ChatMessage>["regenerate"];
-};
+}
 
 export function MessageEditor({
 	message,

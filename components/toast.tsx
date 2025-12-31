@@ -68,8 +68,8 @@ function Toast(props: ToastProps) {
 	);
 }
 
-type ToastProps = {
+interface ToastProps {
 	id: string | number;
 	type: "success" | "error";
 	description: string;
-};
+}

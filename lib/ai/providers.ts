@@ -24,8 +24,10 @@ const logProviderConfig = () => {
 	};
 
 	if (
-		!providerConfigSnapshot.hasOpenAiKey ||
-		!providerConfigSnapshot.hasAnthropicKey
+		!(
+			providerConfigSnapshot.hasOpenAiKey &&
+			providerConfigSnapshot.hasAnthropicKey
+		)
 	) {
 		console.warn(
 			"[ai:providers] Missing API credentials",
