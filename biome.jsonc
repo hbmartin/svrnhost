@@ -24,6 +24,9 @@
       "a11y": {
         /* Needs more work to fix */
         "noSvgWithoutTitle": "off"
+      },
+      "performance": {
+        "noNamespaceImport": "off"
       }
     }
   },

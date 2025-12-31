@@ -1,3 +1,4 @@
+/** biome-ignore-all lint/suspicious/useAwait: tracing */
 import { SpanStatusCode, trace } from "@opentelemetry/api";
 import twilio, { RestException } from "twilio";
 import type { MessageListInstanceCreateOptions } from "twilio/lib/rest/api/v2010/account/message";

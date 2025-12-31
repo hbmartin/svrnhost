@@ -1,3 +1,4 @@
+/** biome-ignore-all lint/suspicious/useAwait: tracing */
 import { SpanStatusCode, trace } from "@opentelemetry/api";
 import { getTwilioConfig } from "@/lib/config/server";
 import { convertToUIMessages } from "@/lib/utils";

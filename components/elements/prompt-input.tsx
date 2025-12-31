@@ -75,7 +75,8 @@ export const PromptInputTextarea = ({
 				"w-full resize-none rounded-none border-none p-3 shadow-none outline-hidden ring-0",
 				disableAutoResize
 					? "field-sizing-fixed"
-					: resizeOnNewLinesOnly
+					: // biome-ignore lint/style/noNestedTernary: styling
+						resizeOnNewLinesOnly
 						? "field-sizing-fixed"
 						: "field-sizing-content max-h-[6lh]",
 				"bg-transparent dark:bg-transparent",

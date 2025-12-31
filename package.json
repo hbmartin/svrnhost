@@ -7,6 +7,7 @@
 		"build": "next build",
 		"start": "next start",
 		"lint": "npx ultracite@latest check",
+		"lint:report": "npx biome check . --reporter=json | jq -r '  .diagnostics[]  | .category' | sort | uniq -c | sort -nr",
 		"format": "npx ultracite@latest fix",
 		"db:generate": "drizzle-kit generate",
 		"db:migrate": "npx tsx lib/db/migrate.ts",
