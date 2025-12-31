@@ -24,7 +24,8 @@ export interface ChatTools {
 	listUpcomingEvents: listUpcomingEventsTool;
 }
 
-export interface CustomUIDataTypes {
+// biome-ignore lint/style/useConsistentTypeDefinitions: required for build
+export type CustomUIDataTypes = {
 	textDelta: string;
 	imageDelta: string;
 	sheetDelta: string;
@@ -36,7 +37,7 @@ export interface CustomUIDataTypes {
 	clear: null;
 	finish: null;
 	usage: AppUsage;
-}
+};
 
 export type ChatMessage = UIMessage<
 	MessageMetadata,
