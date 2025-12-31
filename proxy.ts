@@ -59,8 +59,7 @@ export async function proxy(request: NextRequest) {
 
 	if (token && PUBLIC_ROUTES.has(pathname)) {
 		const redirectParam = request.nextUrl.searchParams.get("redirectUrl");
-		const redirectTarget =
-			redirectParam && redirectParam.startsWith("/") ? redirectParam : "/";
+		const redirectTarget = redirectParam?.startsWith("/") ? redirectParam : "/";
 
 		return NextResponse.redirect(new URL(redirectTarget, request.url));
 	}

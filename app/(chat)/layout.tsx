@@ -3,13 +3,9 @@ import { DataStreamProvider } from "@/components/data-stream-provider";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
 	return (
-		<>
-			<DataStreamProvider>
-				<Suspense fallback={<div className="flex h-dvh" />}>
-					{children}
-				</Suspense>
-			</DataStreamProvider>
-		</>
+		<DataStreamProvider>
+			<Suspense fallback={<div className="flex h-dvh" />}>{children}</Suspense>
+		</DataStreamProvider>
 	);
 }
 

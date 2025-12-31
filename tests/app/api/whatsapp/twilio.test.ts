@@ -378,7 +378,7 @@ describe("sendWhatsAppMessageWithRetry", () => {
 	});
 
 	it("includes correlation data in calls", async () => {
-		vi.spyOn(console, "log").mockImplementation(() => {});
+		const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 		const mockCreate = vi
 			.fn()
 			.mockResolvedValue({ sid: "SM123", status: "sent" });
@@ -400,6 +400,17 @@ describe("sendWhatsAppMessageWithRetry", () => {
 		await resultPromise;
 
 		expect(mockCreate).toHaveBeenCalled();
+		expect(logSpy).toHaveBeenCalledWith(
+			"[whatsapp]",
+			expect.objectContaining({
+				event: "whatsapp.outbound.sent",
+				messageSid: "SM-incoming",
+				waId: "123456",
+				chatId: "chat-123",
+			}),
+		);
+
+		logSpy.mockRestore();
 	});
 
 	it("retries on transient failures and succeeds", async () => {
@@ -484,7 +495,7 @@ describe("sendWhatsAppMessageWithRetry", () => {
 
 	it("logs retry warnings when retries occur", async () => {
 		const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-		vi.spyOn(console, "log").mockImplementation(() => {});
+		const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 		const mockCreate = vi
 			.fn()
 			.mockRejectedValueOnce(
@@ -514,6 +525,7 @@ describe("sendWhatsAppMessageWithRetry", () => {
 		);
 
 		warnSpy.mockRestore();
+		logSpy.mockRestore();
 	});
 
 	it("handles rate limit errors from rate limiter", async () => {

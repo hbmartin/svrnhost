@@ -1,118 +1,124 @@
 import type {
-  AssistantModelMessage,
-  ToolModelMessage,
-  UIMessage,
-  UIMessagePart,
-} from 'ai';
-import { type ClassValue, clsx } from 'clsx';
-import { formatISO } from 'date-fns';
-import { twMerge } from 'tailwind-merge';
-import type { DBMessage, Document } from '@/lib/db/schema';
-import { ChatSDKError, type ErrorCode } from './errors';
-import type { ChatMessage, ChatTools, CustomUIDataTypes } from './types';
+	AssistantModelMessage,
+	ToolModelMessage,
+	UIMessage,
+	UIMessagePart,
+} from "ai";
+import { type ClassValue, clsx } from "clsx";
+import { formatISO } from "date-fns";
+import { twMerge } from "tailwind-merge";
+import type { DBMessage, Document } from "@/lib/db/schema";
+import { ChatSDKError, type ErrorCode } from "./errors";
+import type { ChatMessage, ChatTools, CustomUIDataTypes } from "./types";
 
 export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
+	return twMerge(clsx(inputs));
 }
 
 export const fetcher = async (url: string) => {
-  const response = await fetch(url);
+	const response = await fetch(url);
 
-  if (!response.ok) {
-    const { code, cause } = await response.json();
-    throw new ChatSDKError(code as ErrorCode, cause);
-  }
+	if (!response.ok) {
+		const { code, cause } = await response.json();
+		throw new ChatSDKError(code as ErrorCode, cause);
+	}
 
-  return response.json();
+	return response.json();
 };
 
 export async function fetchWithErrorHandlers(
-  input: RequestInfo | URL,
-  init?: RequestInit,
+	input: RequestInfo | URL,
+	init?: RequestInit,
 ) {
-  try {
-    const response = await fetch(input, init);
+	try {
+		const response = await fetch(input, init);
 
-    if (!response.ok) {
-      const { code, cause } = await response.json();
-      throw new ChatSDKError(code as ErrorCode, cause);
-    }
+		if (!response.ok) {
+			const { code, cause } = await response.json();
+			throw new ChatSDKError(code as ErrorCode, cause);
+		}
 
-    return response;
-  } catch (error: unknown) {
-    if (typeof navigator !== 'undefined' && !navigator.onLine) {
-      throw new ChatSDKError('offline:chat');
-    }
+		return response;
+	} catch (error: unknown) {
+		if (typeof navigator !== "undefined" && !navigator.onLine) {
+			throw new ChatSDKError("offline:chat");
+		}
 
-    throw error;
-  }
+		throw error;
+	}
 }
 
 export function getLocalStorage(key: string) {
-  if (typeof window !== 'undefined') {
-    return JSON.parse(localStorage.getItem(key) || '[]');
-  }
-  return [];
+	if (typeof window !== "undefined") {
+		return JSON.parse(localStorage.getItem(key) || "[]");
+	}
+	return [];
 }
 
 export function generateUUID(): string {
-  const uuid = globalThis.crypto?.randomUUID?.();
-  if (uuid) {
-    return uuid;
-  }
+	const uuid = globalThis.crypto?.randomUUID?.();
+	if (uuid) {
+		return uuid;
+	}
 
-  throw new Error('crypto.randomUUID is not available in this environment');
+	throw new Error("crypto.randomUUID is not available in this environment");
 }
 
 type ResponseMessageWithoutId = ToolModelMessage | AssistantModelMessage;
 type ResponseMessage = ResponseMessageWithoutId & { id: string };
 
 export function getMostRecentUserMessage(messages: UIMessage[]) {
-  const userMessages = messages.filter((message) => message.role === 'user');
-  return userMessages.at(-1);
+	const userMessages = messages.filter((message) => message.role === "user");
+	return userMessages.at(-1);
 }
 
 export function getDocumentTimestampByIndex(
-  documents: Document[],
-  index: number,
+	documents: Document[],
+	index: number,
 ) {
-  if (!documents) { return new Date(); }
-  const doc = documents[index];
-  if (!doc) { return new Date(); }
+	if (!documents) {
+		return new Date();
+	}
+	const doc = documents[index];
+	if (!doc) {
+		return new Date();
+	}
 
-  return doc.createdAt;
+	return doc.createdAt;
 }
 
 export function getTrailingMessageId({
-  messages,
+	messages,
 }: {
-  messages: ResponseMessage[];
+	messages: ResponseMessage[];
 }): string | null {
-  const trailingMessage = messages.at(-1);
+	const trailingMessage = messages.at(-1);
 
-  if (!trailingMessage) { return null; }
+	if (!trailingMessage) {
+		return null;
+	}
 
-  return trailingMessage.id;
+	return trailingMessage.id;
 }
 
 export function sanitizeText(text: string) {
-  return text.replace('<has_function_call>', '');
+	return text.replace("<has_function_call>", "");
 }
 
 export function convertToUIMessages(messages: DBMessage[]): ChatMessage[] {
-  return messages.map((message) => ({
-    id: message.id,
-    role: message.role as 'user' | 'assistant' | 'system',
-    parts: message.parts as UIMessagePart<CustomUIDataTypes, ChatTools>[],
-    metadata: {
-      createdAt: formatISO(message.createdAt),
-    },
-  }));
+	return messages.map((message) => ({
+		id: message.id,
+		role: message.role as "user" | "assistant" | "system",
+		parts: message.parts as UIMessagePart<CustomUIDataTypes, ChatTools>[],
+		metadata: {
+			createdAt: formatISO(message.createdAt),
+		},
+	}));
 }
 
 export function getTextFromMessage(message: ChatMessage | UIMessage): string {
-  return message.parts
-    .filter((part) => part.type === 'text')
-    .map((part) => (part as { type: 'text'; text: string}).text)
-    .join('');
+	return message.parts
+		.filter((part) => part.type === "text")
+		.map((part) => (part as { type: "text"; text: string }).text)
+		.join("");
 }
