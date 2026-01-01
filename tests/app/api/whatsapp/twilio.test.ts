@@ -576,8 +576,7 @@ describe("sendWhatsAppMessageWithRetry", () => {
 	});
 
 	it("retries on network errors (ECONNRESET)", async () => {
-		const networkError = new Error("socket hang up");
-		networkError.message = "ECONNRESET";
+		const networkError = new Error("ECONNRESET");
 		const mockCreate = vi
 			.fn()
 			.mockRejectedValueOnce(networkError)
