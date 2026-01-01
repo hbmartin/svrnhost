@@ -1,12 +1,17 @@
-import { RestException } from "twilio";
+import twilio, { RestException } from "twilio";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	chunkMessageByNewlines,
+	createTwilioClient,
 	getTwilioErrorMetadata,
 	type SendMessageParams,
+	sendTypingIndicator,
+	sendWhatsAppMessage,
 	sendWhatsAppMessageWithRetry,
 	type TwilioClient,
+	validateTwilioRequest,
 } from "@/app/api/whatsapp/twilio";
+import type { IncomingMessage } from "@/app/api/whatsapp/types";
 
 // Mock the rate limiter
 vi.mock("@/lib/rate-limiter", () => ({
@@ -14,6 +19,23 @@ vi.mock("@/lib/rate-limiter", () => ({
 		acquire: vi.fn().mockResolvedValue(undefined),
 	},
 }));
+
+// Mock twilio module - only mock the constructor and validateRequest
+vi.mock("twilio", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("twilio")>();
+	const mockValidateRequest = vi.fn().mockReturnValue(true);
+	const mockTwilioConstructor = vi.fn(() => ({
+		messages: { create: vi.fn() },
+		conversations: { v1: { conversations: vi.fn() } },
+		request: vi.fn(),
+	})) as unknown as typeof actual.default;
+	(mockTwilioConstructor as unknown as { validateRequest: typeof mockValidateRequest }).validateRequest = mockValidateRequest;
+	return {
+		...actual,
+		default: mockTwilioConstructor,
+		RestException: actual.RestException,
+	};
+});
 
 // Mock config
 vi.mock("@/lib/config/server", () => ({
@@ -23,7 +45,7 @@ vi.mock("@/lib/config/server", () => ({
 		whatsappFrom: "+15551234567",
 		messagingServiceSid: undefined,
 		whatsappWebhookUrl: "https://example.com/api/whatsapp",
-		conversationsAgentIdentity: undefined,
+		conversationsAgentIdentity: "agent-identity",
 	})),
 	vercelEnv: "test",
 }));
@@ -551,5 +573,438 @@ describe("sendWhatsAppMessageWithRetry", () => {
 		await vi.runAllTimersAsync();
 		await expect(resultPromise).rejects.toThrow("Rate limit exceeded");
 		expect(mockCreate).not.toHaveBeenCalled();
+	});
+
+	it("retries on network errors (ECONNRESET)", async () => {
+		const networkError = new Error("socket hang up");
+		networkError.message = "ECONNRESET";
+		const mockCreate = vi
+			.fn()
+			.mockRejectedValueOnce(networkError)
+			.mockResolvedValue({ sid: "SM123", status: "sent" });
+		const client = createMockClient(mockCreate);
+
+		const params: SendMessageParams = {
+			client,
+			to: "+15559876543",
+			response: "Hello",
+		};
+
+		const resultPromise = sendWhatsAppMessageWithRetry(params);
+		await vi.runAllTimersAsync();
+		const result = await resultPromise;
+
+		expect(result.sid).toBe("SM123");
+		expect(mockCreate).toHaveBeenCalledTimes(2);
+	});
+
+	it("does not retry on unknown error types", async () => {
+		// Create an error that's not a RestException and not a network error
+		const unknownError = { code: "UNKNOWN", message: "Unknown error" };
+		const mockCreate = vi.fn().mockRejectedValue(unknownError);
+		const client = createMockClient(mockCreate);
+
+		const params: SendMessageParams = {
+			client,
+			to: "+15559876543",
+			response: "Hello",
+		};
+
+		const resultPromise = sendWhatsAppMessageWithRetry(params);
+		resultPromise.catch(() => {}); // Prevent unhandled rejection warning
+
+		await vi.runAllTimersAsync();
+		await expect(resultPromise).rejects.toEqual(unknownError);
+		// Should only try once for unknown error types
+		expect(mockCreate).toHaveBeenCalledTimes(1);
+	});
+
+	it("retries on 429 rate limit responses", async () => {
+		const mockCreate = vi
+			.fn()
+			.mockRejectedValueOnce(
+				new RestException({
+					statusCode: 429,
+					body: JSON.stringify({ message: "Too many requests" }),
+				} as never),
+			)
+			.mockResolvedValue({ sid: "SM123", status: "sent" });
+		const client = createMockClient(mockCreate);
+
+		const params: SendMessageParams = {
+			client,
+			to: "+15559876543",
+			response: "Hello",
+		};
+
+		const resultPromise = sendWhatsAppMessageWithRetry(params);
+		await vi.runAllTimersAsync();
+		const result = await resultPromise;
+
+		expect(result.sid).toBe("SM123");
+		expect(mockCreate).toHaveBeenCalledTimes(2);
+	});
+});
+
+describe("validateTwilioRequest", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	it("returns true for valid signature", () => {
+		vi.mocked(twilio.validateRequest).mockReturnValue(true);
+
+		const result = validateTwilioRequest(
+			"valid-signature",
+			"https://example.com/webhook",
+			{ Body: "Hello", From: "+15551234567" },
+		);
+
+		expect(result).toBe(true);
+		expect(twilio.validateRequest).toHaveBeenCalledWith(
+			"token",
+			"valid-signature",
+			"https://example.com/webhook",
+			{ Body: "Hello", From: "+15551234567" },
+		);
+	});
+
+	it("returns false for invalid signature", () => {
+		vi.mocked(twilio.validateRequest).mockReturnValue(false);
+
+		const result = validateTwilioRequest(
+			"invalid-signature",
+			"https://example.com/webhook",
+			{ Body: "Hello" },
+		);
+
+		expect(result).toBe(false);
+	});
+
+	it("handles empty params object", () => {
+		vi.mocked(twilio.validateRequest).mockReturnValue(true);
+
+		const result = validateTwilioRequest(
+			"signature",
+			"https://example.com/webhook",
+			{},
+		);
+
+		expect(result).toBe(true);
+		expect(twilio.validateRequest).toHaveBeenCalledWith(
+			"token",
+			"signature",
+			"https://example.com/webhook",
+			{},
+		);
+	});
+});
+
+describe("createTwilioClient", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	it("creates a twilio client with correct config", () => {
+		const client = createTwilioClient();
+
+		expect(client).toBeDefined();
+		expect(twilio).toHaveBeenCalledWith("AC123", "token", {
+			autoRetry: true,
+			maxRetries: 3,
+		});
+	});
+
+	it("returns a client with messages API", () => {
+		const client = createTwilioClient();
+
+		expect(client.messages).toBeDefined();
+	});
+});
+
+describe("sendTypingIndicator", () => {
+	const createMockIncomingMessage = (
+		overrides: Partial<IncomingMessage> = {},
+	): IncomingMessage => ({
+		MessageSid: "SM123",
+		From: "whatsapp:+15551234567",
+		To: "whatsapp:+15559876543",
+		Body: "Hello",
+		WaId: "15551234567",
+		NumMedia: 0,
+		ConversationSid: "CH123",
+		...overrides,
+	});
+
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	it("skips typing indicator when ConversationSid is missing", async () => {
+		const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+		const payload = createMockIncomingMessage({ ConversationSid: undefined });
+		const client = {} as TwilioClient;
+
+		await sendTypingIndicator(client, payload);
+
+		expect(logSpy).toHaveBeenCalledWith(
+			"[whatsapp]",
+			expect.objectContaining({
+				event: "whatsapp.typing.skipped",
+				details: { reason: "missing_conversation_sid" },
+			}),
+		);
+
+		logSpy.mockRestore();
+	});
+
+	it("logs warning when agent participant is not found", async () => {
+		const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+		const payload = createMockIncomingMessage();
+
+		const mockParticipantsList = vi.fn().mockResolvedValue([
+			{ identity: "other-agent", sid: "PA123" },
+		]);
+		const mockConversations = vi.fn().mockReturnValue({
+			participants: { list: mockParticipantsList },
+		});
+		const client = {
+			conversations: {
+				v1: { conversations: mockConversations },
+			},
+		} as unknown as TwilioClient;
+
+		await sendTypingIndicator(client, payload);
+
+		expect(warnSpy).toHaveBeenCalledWith(
+			"[whatsapp]",
+			expect.objectContaining({
+				event: "whatsapp.typing.agent_not_found",
+			}),
+		);
+
+		warnSpy.mockRestore();
+	});
+
+	it("sends typing indicator successfully", async () => {
+		const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+		const payload = createMockIncomingMessage();
+
+		const mockRequest = vi.fn().mockResolvedValue({});
+		const mockParticipantsList = vi.fn().mockResolvedValue([
+			{ identity: "agent-identity", sid: "PA123" },
+		]);
+		const mockConversations = vi.fn().mockReturnValue({
+			participants: { list: mockParticipantsList },
+		});
+		const client = {
+			conversations: {
+				v1: { conversations: mockConversations },
+			},
+			request: mockRequest,
+		} as unknown as TwilioClient;
+
+		await sendTypingIndicator(client, payload);
+
+		expect(mockRequest).toHaveBeenCalledWith({
+			method: "post",
+			uri: "https://conversations.twilio.com/v1/Conversations/CH123/Participants/PA123/Typing",
+		});
+		expect(logSpy).toHaveBeenCalledWith(
+			"[whatsapp]",
+			expect.objectContaining({
+				event: "whatsapp.typing.sent",
+			}),
+		);
+
+		logSpy.mockRestore();
+	});
+
+	it("throws and records exception on error", async () => {
+		const payload = createMockIncomingMessage();
+		const error = new Error("Network error");
+
+		const mockParticipantsList = vi.fn().mockRejectedValue(error);
+		const mockConversations = vi.fn().mockReturnValue({
+			participants: { list: mockParticipantsList },
+		});
+		const client = {
+			conversations: {
+				v1: { conversations: mockConversations },
+			},
+		} as unknown as TwilioClient;
+
+		await expect(sendTypingIndicator(client, payload)).rejects.toThrow(
+			"Network error",
+		);
+	});
+
+	it("uses correlation IDs when provided", async () => {
+		const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+		const payload = createMockIncomingMessage();
+		const correlation = {
+			messageSid: "SM-custom",
+			waId: "custom-wa-id",
+			chatId: "chat-456",
+		};
+
+		const mockRequest = vi.fn().mockResolvedValue({});
+		const mockParticipantsList = vi.fn().mockResolvedValue([
+			{ identity: "agent-identity", sid: "PA123" },
+		]);
+		const mockConversations = vi.fn().mockReturnValue({
+			participants: { list: mockParticipantsList },
+		});
+		const client = {
+			conversations: {
+				v1: { conversations: mockConversations },
+			},
+			request: mockRequest,
+		} as unknown as TwilioClient;
+
+		await sendTypingIndicator(client, payload, correlation);
+
+		expect(logSpy).toHaveBeenCalledWith(
+			"[whatsapp]",
+			expect.objectContaining({
+				event: "whatsapp.typing.sent",
+				messageSid: "SM-custom",
+				waId: "custom-wa-id",
+				chatId: "chat-456",
+			}),
+		);
+
+		logSpy.mockRestore();
+	});
+});
+
+describe("sendWhatsAppMessage", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	it("sends message with formatted WhatsApp numbers", async () => {
+		const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+		const mockCreate = vi
+			.fn()
+			.mockResolvedValue({ sid: "SM123", status: "sent" });
+		const client = {
+			messages: { create: mockCreate },
+		} as unknown as TwilioClient;
+
+		const result = await sendWhatsAppMessage({
+			client,
+			to: "+15559876543",
+			response: "Hello!",
+		});
+
+		expect(result).toEqual({ sid: "SM123", status: "sent" });
+		expect(mockCreate).toHaveBeenCalledWith(
+			expect.objectContaining({
+				to: "whatsapp:+15559876543",
+				body: "Hello!",
+				from: "whatsapp:+15551234567",
+			}),
+		);
+
+		logSpy.mockRestore();
+	});
+
+	it("uses custom from number when provided", async () => {
+		const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+		const mockCreate = vi
+			.fn()
+			.mockResolvedValue({ sid: "SM123", status: "sent" });
+		const client = {
+			messages: { create: mockCreate },
+		} as unknown as TwilioClient;
+
+		await sendWhatsAppMessage({
+			client,
+			to: "+15559876543",
+			from: "+15550001111",
+			response: "Hello!",
+		});
+
+		expect(mockCreate).toHaveBeenCalledWith(
+			expect.objectContaining({
+				from: "whatsapp:+15550001111",
+			}),
+		);
+
+		logSpy.mockRestore();
+	});
+
+	it("logs outbound message with correlation", async () => {
+		const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+		const mockCreate = vi
+			.fn()
+			.mockResolvedValue({ sid: "SM123", status: "queued" });
+		const client = {
+			messages: { create: mockCreate },
+		} as unknown as TwilioClient;
+
+		await sendWhatsAppMessage({
+			client,
+			to: "+15559876543",
+			response: "Hello!",
+			correlation: {
+				messageSid: "SM-incoming",
+				waId: "123456",
+				chatId: "chat-789",
+			},
+		});
+
+		expect(logSpy).toHaveBeenCalledWith(
+			"[whatsapp]",
+			expect.objectContaining({
+				event: "whatsapp.outbound.sent",
+				messageSid: "SM-incoming",
+				waId: "123456",
+				chatId: "chat-789",
+				status: "queued",
+			}),
+		);
+
+		logSpy.mockRestore();
+	});
+
+	it("throws and records exception on error", async () => {
+		const mockCreate = vi.fn().mockRejectedValue(new Error("API error"));
+		const client = {
+			messages: { create: mockCreate },
+		} as unknown as TwilioClient;
+
+		await expect(
+			sendWhatsAppMessage({
+				client,
+				to: "+15559876543",
+				response: "Hello!",
+			}),
+		).rejects.toThrow("API error");
+	});
+
+	it("handles number already prefixed with whatsapp:", async () => {
+		const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+		const mockCreate = vi
+			.fn()
+			.mockResolvedValue({ sid: "SM123", status: "sent" });
+		const client = {
+			messages: { create: mockCreate },
+		} as unknown as TwilioClient;
+
+		await sendWhatsAppMessage({
+			client,
+			to: "whatsapp:+15559876543",
+			response: "Hello!",
+		});
+
+		expect(mockCreate).toHaveBeenCalledWith(
+			expect.objectContaining({
+				to: "whatsapp:+15559876543",
+			}),
+		);
+
+		logSpy.mockRestore();
 	});
 });

@@ -17,7 +17,7 @@ const nextConfig: NextConfig = {
 	},
 };
 
-export default withSentryConfig(nextConfig, {
+const sentryConfig = withSentryConfig(nextConfig, {
 	// For all available options, see:
 	// https://www.npmjs.com/package/@sentry/webpack-plugin#options
 
@@ -54,3 +54,12 @@ export default withSentryConfig(nextConfig, {
 		},
 	},
 });
+
+const isCI = !!process.env["CI"];
+const exportedConfig = isCI ? sentryConfig : nextConfig;
+
+console.log(
+	`[next.config] Using ${isCI ? "sentryConfig" : "nextConfig"} (CI=${process.env["CI"] ?? "undefined"})`,
+);
+
+export default exportedConfig;
