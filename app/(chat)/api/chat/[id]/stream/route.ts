@@ -11,6 +11,7 @@ import { ChatSDKError } from "@/lib/errors";
 import type { ChatMessage } from "@/lib/types";
 import { getStreamContext } from "../../route";
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: legacy
 export async function GET(
 	_: Request,
 	{ params }: { params: Promise<{ id: string }> },

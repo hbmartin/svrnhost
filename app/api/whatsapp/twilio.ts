@@ -213,9 +213,7 @@ export async function sendWhatsAppMessage({
 		try {
 			const result = await client.messages.create(payload);
 			span.setAttribute("twilio.message_sid", result.sid);
-			if (result.status) {
-				span.setAttribute("twilio.status", result.status);
-			}
+			span.setAttribute("twilio.status", result.status);
 
 			logWhatsAppEvent("info", {
 				event: "whatsapp.outbound.sent",
@@ -288,6 +286,8 @@ function sleep(ms: number): Promise<void> {
  * Tries to split on newline boundaries; if a single line exceeds the limit,
  * it will be included as its own chunk (Twilio will truncate if needed).
  */
+
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: invariant checking
 export function chunkMessageByNewlines(
 	message: string,
 	maxLength: number,

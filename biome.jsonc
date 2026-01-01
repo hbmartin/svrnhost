@@ -19,7 +19,13 @@
       },
       "complexity": {
         /* TypeScript requires bracket notation for index signatures */
-        "useLiteralKeys": "off"
+        "useLiteralKeys": "off",
+        "noExcessiveCognitiveComplexity": {
+          "level": "error",
+          "options": {
+            "maxAllowedComplexity": 12
+          }
+        }
       },
       "a11y": {
         /* Needs more work to fix */

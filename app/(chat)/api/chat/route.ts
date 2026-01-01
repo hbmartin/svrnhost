@@ -82,6 +82,7 @@ export function getStreamContext() {
 	return globalStreamContext;
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: legacy
 export async function POST(request: Request) {
 	let requestBody: PostRequestBody;
 	let requestMetadata: { chatId?: string; selectedChatModel?: string } = {};
