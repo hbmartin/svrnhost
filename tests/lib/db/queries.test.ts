@@ -762,21 +762,40 @@ describe("getChatsByUserId pagination", () => {
 		testUserId = user.id;
 
 		// Create 5 chats with specific timestamps for predictable ordering
+		// chatIds[0] is oldest (smallest timestamp), chatIds[4] is newest (largest timestamp)
 		chatIds = [];
+		const baseTime = Date.now();
 		for (let i = 0; i < 5; i++) {
 			const chatId = crypto.randomUUID();
 			chatIds.push(chatId);
 			await db.insert(schema.chat).values({
 				id: chatId,
-				createdAt: new Date(Date.now() + i * 1000),
+				createdAt: new Date(baseTime + i * 1000),
 				userId: testUserId,
 				title: `Chat ${i}`,
 			});
 		}
 	});
 
-	it("should paginate with startingAfter", async () => {
-		// Get first page
+	it("should return chats in descending order by createdAt", async () => {
+		const result = await getChatsByUserId({
+			id: testUserId,
+			limit: 10,
+			startingAfter: null,
+			endingBefore: null,
+		});
+
+		expect(result.chats).toHaveLength(5);
+		// Descending order: newest first, so chatIds[4], chatIds[3], chatIds[2], chatIds[1], chatIds[0]
+		expect(result.chats[0].id).toBe(chatIds[4]); // newest
+		expect(result.chats[1].id).toBe(chatIds[3]);
+		expect(result.chats[2].id).toBe(chatIds[2]);
+		expect(result.chats[3].id).toBe(chatIds[1]);
+		expect(result.chats[4].id).toBe(chatIds[0]); // oldest
+	});
+
+	it("should paginate with startingAfter to get older chats", async () => {
+		// Get first page (2 newest chats)
 		const firstPage = await getChatsByUserId({
 			id: testUserId,
 			limit: 2,
@@ -786,39 +805,82 @@ describe("getChatsByUserId pagination", () => {
 
 		expect(firstPage.chats).toHaveLength(2);
 		expect(firstPage.hasMore).toBe(true);
+		// First page should have chatIds[4] and chatIds[3] (newest)
+		expect(firstPage.chats[0].id).toBe(chatIds[4]);
+		expect(firstPage.chats[1].id).toBe(chatIds[3]);
 
-		// Get page using startingAfter - returns chats with createdAt > cursor
+		// Get second page using startingAfter (chats older than cursor)
 		const secondPage = await getChatsByUserId({
 			id: testUserId,
 			limit: 2,
-			startingAfter: firstPage.chats[1].id,
+			startingAfter: firstPage.chats[1].id, // cursor is chatIds[3]
 			endingBefore: null,
 		});
 
-		// Function executes without error and returns a valid response
-		expect(secondPage).toHaveProperty("chats");
-		expect(secondPage).toHaveProperty("hasMore");
+		// Second page should have chatIds[2] and chatIds[1] (next older chats)
+		expect(secondPage.chats).toHaveLength(2);
+		expect(secondPage.chats[0].id).toBe(chatIds[2]);
+		expect(secondPage.chats[1].id).toBe(chatIds[1]);
+		expect(secondPage.hasMore).toBe(true);
+
+		// Get third page
+		const thirdPage = await getChatsByUserId({
+			id: testUserId,
+			limit: 2,
+			startingAfter: secondPage.chats[1].id, // cursor is chatIds[1]
+			endingBefore: null,
+		});
+
+		// Third page should have only chatIds[0] (oldest)
+		expect(thirdPage.chats).toHaveLength(1);
+		expect(thirdPage.chats[0].id).toBe(chatIds[0]);
+		expect(thirdPage.hasMore).toBe(false);
 	});
 
-	it("should paginate with endingBefore", async () => {
-		// Get all chats first
-		const allChats = await getChatsByUserId({
-			id: testUserId,
-			limit: 10,
-			startingAfter: null,
-			endingBefore: null,
-		});
-
-		// Get chats ending before the last chat
+	it("should paginate with endingBefore to get newer chats", async () => {
+		// endingBefore gets chats that are newer than the cursor (come before in desc order)
+		// Using the oldest chat as cursor should return all newer chats
 		const result = await getChatsByUserId({
 			id: testUserId,
 			limit: 10,
 			startingAfter: null,
-			endingBefore: allChats.chats[allChats.chats.length - 1].id,
+			endingBefore: chatIds[0], // oldest chat as cursor
 		});
 
-		// Should not include the chat we're ending before
-		expect(result.chats.some((c) => c.id === allChats.chats[allChats.chats.length - 1].id)).toBe(false);
+		// Should get chats 1-4 (all newer than chat 0)
+		expect(result.chats).toHaveLength(4);
+		expect(result.chats[0].id).toBe(chatIds[4]); // newest
+		expect(result.chats[1].id).toBe(chatIds[3]);
+		expect(result.chats[2].id).toBe(chatIds[2]);
+		expect(result.chats[3].id).toBe(chatIds[1]);
+		// Should NOT include the cursor chat
+		expect(result.chats.some((c) => c.id === chatIds[0])).toBe(false);
+	});
+
+	it("should return empty array when startingAfter cursor is oldest chat", async () => {
+		// If cursor is the oldest chat, there are no older chats to return
+		const result = await getChatsByUserId({
+			id: testUserId,
+			limit: 10,
+			startingAfter: chatIds[0], // oldest chat
+			endingBefore: null,
+		});
+
+		expect(result.chats).toHaveLength(0);
+		expect(result.hasMore).toBe(false);
+	});
+
+	it("should return empty array when endingBefore cursor is newest chat", async () => {
+		// If cursor is the newest chat, there are no newer chats to return
+		const result = await getChatsByUserId({
+			id: testUserId,
+			limit: 10,
+			startingAfter: null,
+			endingBefore: chatIds[4], // newest chat
+		});
+
+		expect(result.chats).toHaveLength(0);
+		expect(result.hasMore).toBe(false);
 	});
 
 	it("should return hasMore false when no more results", async () => {
