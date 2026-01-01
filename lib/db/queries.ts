@@ -1,20 +1,9 @@
 import "server-only";
 
-import {
-	and,
-	asc,
-	count,
-	desc,
-	eq,
-	gt,
-	gte,
-	inArray,
-	lt,
-	type SQL,
-} from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, gte, lt, type SQL } from "drizzle-orm";
+import { db } from "@/lib/db/index";
 import { ChatSDKError } from "../errors";
 import type { AppUsage } from "../usage";
-import { db } from "./index";
 import {
 	type Chat,
 	chat,
@@ -99,10 +88,7 @@ export async function saveChat({
 
 export async function deleteChatById({ id }: { id: string }) {
 	try {
-		await db.delete(vote).where(eq(vote.chatId, id));
-		await db.delete(message).where(eq(message.chatId, id));
-		await db.delete(stream).where(eq(stream.chatId, id));
-
+		// Related vote, message, and stream records are deleted via onDelete: "cascade"
 		const [chatsDeleted] = await db
 			.delete(chat)
 			.where(eq(chat.id, id))
@@ -118,21 +104,7 @@ export async function deleteChatById({ id }: { id: string }) {
 
 export async function deleteAllChatsByUserId({ userId }: { userId: string }) {
 	try {
-		const userChats = await db
-			.select({ id: chat.id })
-			.from(chat)
-			.where(eq(chat.userId, userId));
-
-		if (userChats.length === 0) {
-			return { deletedCount: 0 };
-		}
-
-		const chatIds = userChats.map((c) => c.id);
-
-		await db.delete(vote).where(inArray(vote.chatId, chatIds));
-		await db.delete(message).where(inArray(message.chatId, chatIds));
-		await db.delete(stream).where(inArray(stream.chatId, chatIds));
-
+		// Related vote, message, and stream records are deleted via onDelete: "cascade"
 		const deletedChats = await db
 			.delete(chat)
 			.where(eq(chat.userId, userId))
@@ -387,31 +359,12 @@ export async function deleteMessagesByChatIdAfterTimestamp({
 	timestamp: Date;
 }) {
 	try {
-		const messagesToDelete = await db
-			.select({ id: message.id })
-			.from(message)
+		// Related vote records are deleted via onDelete: "cascade" on messageId
+		return await db
+			.delete(message)
 			.where(
 				and(eq(message.chatId, chatId), gte(message.createdAt, timestamp)),
 			);
-
-		const messageIds = messagesToDelete.map(
-			(currentMessage) => currentMessage.id,
-		);
-
-		if (messageIds.length > 0) {
-			await db
-				.delete(vote)
-				.where(
-					and(eq(vote.chatId, chatId), inArray(vote.messageId, messageIds)),
-				);
-
-			return await db
-				.delete(message)
-				.where(
-					and(eq(message.chatId, chatId), inArray(message.id, messageIds)),
-				);
-		}
-		return undefined;
 	} catch (_error) {
 		throw new ChatSDKError(
 			"bad_request:database",

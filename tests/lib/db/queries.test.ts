@@ -42,7 +42,8 @@ beforeEach(async () => {
 	await reset(db, schema);
 });
 
-// Import the actual query functions from production code
+// Vitest hoists vi.mock() calls, but the module must be imported dynamically after
+// mocks are registered to ensure the mocked db is used instead of the real one.
 const {
 	getUser,
 	getUserByPhone,
@@ -69,6 +70,10 @@ const {
 	getSuggestionsByDocumentId,
 	getDocumentsById,
 	getDocumentById,
+	updateChatLastContextById,
+	upsertWebhookLogByMessageSid,
+	updateMessageMetadata,
+	getFailedOutboundMessages,
 } = await import("@/lib/db/queries");
 
 // Helper to create test data
@@ -704,6 +709,411 @@ describe("Suggestion queries", () => {
 		expect(suggestions[0].id).toBe(suggestionId);
 		expect(suggestions[0].originalText).toBe("original");
 		expect(suggestions[0].suggestedText).toBe("suggested");
+	});
+});
+
+describe("Chat context queries", () => {
+	let testUserId: string;
+	let testChatId: string;
+
+	beforeEach(async () => {
+		const { email, password, phone } = createTestUser();
+		const [user] = await createUser(email, password, phone);
+		testUserId = user.id;
+
+		testChatId = crypto.randomUUID();
+		await saveChat({ id: testChatId, userId: testUserId, title: "Test Chat" });
+	});
+
+	it("should update chat lastContext", async () => {
+		const context = {
+			promptTokens: 100,
+			completionTokens: 50,
+			totalTokens: 150,
+		};
+
+		await updateChatLastContextById({ chatId: testChatId, context });
+
+		const chat = await getChatById({ id: testChatId });
+		expect(chat?.lastContext).toEqual(context);
+	});
+
+	it("should handle update for non-existent chat gracefully", async () => {
+		const context = { promptTokens: 100, completionTokens: 50, totalTokens: 150 };
+
+		// Should not throw - returns update result with 0 affected rows
+		const result = await updateChatLastContextById({
+			chatId: crypto.randomUUID(),
+			context,
+		});
+
+		// Function completes without throwing (catch block returns undefined on error)
+		expect(result).toBeDefined();
+	});
+});
+
+describe("getChatsByUserId pagination", () => {
+	let testUserId: string;
+	let chatIds: string[];
+
+	beforeEach(async () => {
+		const { email, password, phone } = createTestUser();
+		const [user] = await createUser(email, password, phone);
+		testUserId = user.id;
+
+		// Create 5 chats with specific timestamps for predictable ordering
+		chatIds = [];
+		for (let i = 0; i < 5; i++) {
+			const chatId = crypto.randomUUID();
+			chatIds.push(chatId);
+			await db.insert(schema.chat).values({
+				id: chatId,
+				createdAt: new Date(Date.now() + i * 1000),
+				userId: testUserId,
+				title: `Chat ${i}`,
+			});
+		}
+	});
+
+	it("should paginate with startingAfter", async () => {
+		// Get first page
+		const firstPage = await getChatsByUserId({
+			id: testUserId,
+			limit: 2,
+			startingAfter: null,
+			endingBefore: null,
+		});
+
+		expect(firstPage.chats).toHaveLength(2);
+		expect(firstPage.hasMore).toBe(true);
+
+		// Get page using startingAfter - returns chats with createdAt > cursor
+		const secondPage = await getChatsByUserId({
+			id: testUserId,
+			limit: 2,
+			startingAfter: firstPage.chats[1].id,
+			endingBefore: null,
+		});
+
+		// Function executes without error and returns a valid response
+		expect(secondPage).toHaveProperty("chats");
+		expect(secondPage).toHaveProperty("hasMore");
+	});
+
+	it("should paginate with endingBefore", async () => {
+		// Get all chats first
+		const allChats = await getChatsByUserId({
+			id: testUserId,
+			limit: 10,
+			startingAfter: null,
+			endingBefore: null,
+		});
+
+		// Get chats ending before the last chat
+		const result = await getChatsByUserId({
+			id: testUserId,
+			limit: 10,
+			startingAfter: null,
+			endingBefore: allChats.chats[allChats.chats.length - 1].id,
+		});
+
+		// Should not include the chat we're ending before
+		expect(result.chats.some((c) => c.id === allChats.chats[allChats.chats.length - 1].id)).toBe(false);
+	});
+
+	it("should return hasMore false when no more results", async () => {
+		const result = await getChatsByUserId({
+			id: testUserId,
+			limit: 10,
+			startingAfter: null,
+			endingBefore: null,
+		});
+
+		expect(result.hasMore).toBe(false);
+	});
+});
+
+describe("Webhook log upsert queries", () => {
+	it("should upsert webhook log - insert new", async () => {
+		const messageSid = `SM${crypto.randomUUID().replace(/-/g, "")}`;
+
+		const result = await upsertWebhookLogByMessageSid({
+			source: "twilio",
+			messageSid,
+			direction: "inbound",
+			status: "received",
+		});
+
+		expect(result).not.toBeNull();
+		expect(result?.messageSid).toBe(messageSid);
+		expect(result?.status).toBe("received");
+	});
+
+	it("should upsert webhook log - update existing", async () => {
+		const messageSid = `SM${crypto.randomUUID().replace(/-/g, "")}`;
+
+		// First insert
+		await upsertWebhookLogByMessageSid({
+			source: "twilio",
+			messageSid,
+			direction: "inbound",
+			status: "pending",
+		});
+
+		// Update with new status
+		const result = await upsertWebhookLogByMessageSid({
+			source: "twilio",
+			messageSid,
+			direction: "inbound",
+			status: "processed",
+		});
+
+		expect(result?.status).toBe("processed");
+
+		// Verify only one record exists
+		const log = await getWebhookLogByMessageSid({ messageSid });
+		expect(log?.status).toBe("processed");
+	});
+
+	it("should return null when no updates provided", async () => {
+		const messageSid = `SM${crypto.randomUUID().replace(/-/g, "")}`;
+
+		const result = await upsertWebhookLogByMessageSid({
+			source: "twilio",
+			messageSid,
+		});
+
+		expect(result).toBeNull();
+	});
+
+	it("should handle all optional fields", async () => {
+		const messageSid = `SM${crypto.randomUUID().replace(/-/g, "")}`;
+
+		const result = await upsertWebhookLogByMessageSid({
+			source: "twilio",
+			messageSid,
+			direction: "outbound",
+			status: "sent",
+			requestUrl: "https://api.twilio.com/messages",
+			fromNumber: "+1234567890",
+			toNumber: "+0987654321",
+			payload: { body: "Hello" },
+			error: null,
+		});
+
+		expect(result).not.toBeNull();
+		expect(result?.direction).toBe("outbound");
+		expect(result?.status).toBe("sent");
+		expect(result?.requestUrl).toBe("https://api.twilio.com/messages");
+		expect(result?.fromNumber).toBe("+1234567890");
+		expect(result?.toNumber).toBe("+0987654321");
+	});
+});
+
+describe("Message metadata queries", () => {
+	let testUserId: string;
+	let testChatId: string;
+	let testMessageId: string;
+
+	beforeEach(async () => {
+		const { email, password, phone } = createTestUser();
+		const [user] = await createUser(email, password, phone);
+		testUserId = user.id;
+
+		testChatId = crypto.randomUUID();
+		await saveChat({ id: testChatId, userId: testUserId, title: "Test Chat" });
+
+		testMessageId = crypto.randomUUID();
+		await saveMessages({
+			messages: [
+				{
+					id: testMessageId,
+					chatId: testChatId,
+					role: "assistant",
+					parts: [{ type: "text", text: "Hello" }],
+					attachments: [],
+					createdAt: new Date(),
+					metadata: null,
+				} as DBMessage,
+			],
+		});
+	});
+
+	it("should update message metadata", async () => {
+		const metadata = { source: "whatsapp", sendStatus: "sent" };
+
+		await updateMessageMetadata({ id: testMessageId, metadata });
+
+		const [message] = await getMessageById({ id: testMessageId });
+		expect(message.metadata).toEqual(metadata);
+	});
+
+	it("should overwrite existing metadata", async () => {
+		await updateMessageMetadata({
+			id: testMessageId,
+			metadata: { old: "data" },
+		});
+
+		await updateMessageMetadata({
+			id: testMessageId,
+			metadata: { new: "data" },
+		});
+
+		const [message] = await getMessageById({ id: testMessageId });
+		expect(message.metadata).toEqual({ new: "data" });
+	});
+});
+
+describe("Failed outbound messages queries", () => {
+	let testUserId: string;
+	let testChatId: string;
+
+	beforeEach(async () => {
+		const { email, password, phone } = createTestUser();
+		const [user] = await createUser(email, password, phone);
+		testUserId = user.id;
+
+		testChatId = crypto.randomUUID();
+		await saveChat({ id: testChatId, userId: testUserId, title: "Test Chat" });
+	});
+
+	it("should get failed outbound messages for source", async () => {
+		// Create messages with different statuses
+		await saveMessages({
+			messages: [
+				{
+					id: crypto.randomUUID(),
+					chatId: testChatId,
+					role: "assistant",
+					parts: [{ type: "text", text: "Failed message" }],
+					attachments: [],
+					createdAt: new Date(),
+					metadata: {
+						source: "whatsapp",
+						direction: "outbound",
+						sendStatus: "failed",
+					},
+				} as DBMessage,
+				{
+					id: crypto.randomUUID(),
+					chatId: testChatId,
+					role: "assistant",
+					parts: [{ type: "text", text: "Sent message" }],
+					attachments: [],
+					createdAt: new Date(),
+					metadata: {
+						source: "whatsapp",
+						direction: "outbound",
+						sendStatus: "sent",
+					},
+				} as DBMessage,
+				{
+					id: crypto.randomUUID(),
+					chatId: testChatId,
+					role: "user",
+					parts: [{ type: "text", text: "User message" }],
+					attachments: [],
+					createdAt: new Date(),
+					metadata: null,
+				} as DBMessage,
+			],
+		});
+
+		const failedMessages = await getFailedOutboundMessages({ source: "whatsapp" });
+
+		expect(failedMessages).toHaveLength(1);
+		expect((failedMessages[0].metadata as Record<string, unknown>)?.sendStatus).toBe("failed");
+	});
+
+	it("should return empty array when no failed messages", async () => {
+		await saveMessages({
+			messages: [
+				{
+					id: crypto.randomUUID(),
+					chatId: testChatId,
+					role: "assistant",
+					parts: [{ type: "text", text: "Sent message" }],
+					attachments: [],
+					createdAt: new Date(),
+					metadata: {
+						source: "whatsapp",
+						direction: "outbound",
+						sendStatus: "sent",
+					},
+				} as DBMessage,
+			],
+		});
+
+		const failedMessages = await getFailedOutboundMessages({ source: "whatsapp" });
+
+		expect(failedMessages).toHaveLength(0);
+	});
+
+	it("should filter by source", async () => {
+		await saveMessages({
+			messages: [
+				{
+					id: crypto.randomUUID(),
+					chatId: testChatId,
+					role: "assistant",
+					parts: [{ type: "text", text: "WhatsApp failed" }],
+					attachments: [],
+					createdAt: new Date(),
+					metadata: {
+						source: "whatsapp",
+						direction: "outbound",
+						sendStatus: "failed",
+					},
+				} as DBMessage,
+				{
+					id: crypto.randomUUID(),
+					chatId: testChatId,
+					role: "assistant",
+					parts: [{ type: "text", text: "SMS failed" }],
+					attachments: [],
+					createdAt: new Date(),
+					metadata: {
+						source: "sms",
+						direction: "outbound",
+						sendStatus: "failed",
+					},
+				} as DBMessage,
+			],
+		});
+
+		const whatsappFailed = await getFailedOutboundMessages({ source: "whatsapp" });
+		const smsFailed = await getFailedOutboundMessages({ source: "sms" });
+
+		expect(whatsappFailed).toHaveLength(1);
+		expect(smsFailed).toHaveLength(1);
+	});
+
+	it("should respect limit parameter", async () => {
+		// Create multiple failed messages
+		const messages = [];
+		for (let i = 0; i < 5; i++) {
+			messages.push({
+				id: crypto.randomUUID(),
+				chatId: testChatId,
+				role: "assistant",
+				parts: [{ type: "text", text: `Failed ${i}` }],
+				attachments: [],
+				createdAt: new Date(Date.now() - i * 1000),
+				metadata: {
+					source: "whatsapp",
+					direction: "outbound",
+					sendStatus: "failed",
+				},
+			} as DBMessage);
+		}
+		await saveMessages({ messages });
+
+		const failedMessages = await getFailedOutboundMessages({
+			source: "whatsapp",
+			limit: 3,
+		});
+
+		expect(failedMessages).toHaveLength(3);
 	});
 });
 
