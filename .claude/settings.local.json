@@ -18,7 +18,8 @@
       "WebSearch",
       "WebFetch(domain:biomejs.dev)",
       "Bash(pnpm lint:*)",
-      "Bash(pnpm format:*)"
+      "Bash(pnpm format:*)",
+      "WebFetch(domain:dev.to)"
     ]
   }
 }
