@@ -330,7 +330,7 @@ describe("Message queries", () => {
 		expect(messages[0].id).toBe(messageId);
 	});
 
-	it("should delete messages after timestamp", async () => {
+	it("should delete messages after timestamp and return deleted records", async () => {
 		const timestamp = new Date();
 
 		const oldMessageId = crypto.randomUUID();
@@ -359,11 +359,16 @@ describe("Message queries", () => {
 			],
 		});
 
-		await deleteMessagesByChatIdAfterTimestamp({
+		const deletedMessages = await deleteMessagesByChatIdAfterTimestamp({
 			chatId: testChatId,
 			timestamp,
 		});
 
+		// Verify the deleted messages are returned
+		expect(deletedMessages).toHaveLength(1);
+		expect(deletedMessages[0].id).toBe(newMessageId);
+
+		// Verify only the old message remains in the database
 		const messages = await getMessagesByChatId({ id: testChatId });
 
 		expect(messages).toHaveLength(1);

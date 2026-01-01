@@ -357,7 +357,7 @@ export async function deleteMessagesByChatIdAfterTimestamp({
 }: {
 	chatId: string;
 	timestamp: Date;
-}) {
+}): Promise<DBMessage[]> {
 	try {
 		// Related vote records are deleted via onDelete: "cascade" on messageId
 		return await db
