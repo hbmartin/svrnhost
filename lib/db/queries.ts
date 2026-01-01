@@ -12,11 +12,9 @@ import {
 	lt,
 	type SQL,
 } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
-import { getPostgresUrl } from "../config/server";
 import { ChatSDKError } from "../errors";
 import type { AppUsage } from "../usage";
+import { db } from "./index";
 import {
 	type Chat,
 	chat,
@@ -32,13 +30,6 @@ import {
 	webhookLog,
 } from "./schema";
 import { generateHashedPassword } from "./utils";
-
-// Optionally, if not using email/pass login, you can
-// use the Drizzle adapter for Auth.js / NextAuth
-// https://authjs.dev/reference/adapter/drizzle
-
-const client = postgres(getPostgresUrl());
-const db = drizzle(client);
 
 export async function getUser(email: string): Promise<User[]> {
 	try {
