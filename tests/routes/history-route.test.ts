@@ -53,7 +53,10 @@ describe("/api/history GET", () => {
 describe("/api/history DELETE", () => {
 	it("returns 401 when unauthenticated", async () => {
 		mocks.auth.mockResolvedValue(null);
-		const response = await DELETE();
+		const request = new Request("http://localhost/api/history", {
+			method: "DELETE",
+		});
+		const response = await DELETE(request);
 		expect(response.status).toBe(401);
 	});
 
@@ -61,7 +64,10 @@ describe("/api/history DELETE", () => {
 		mocks.auth.mockResolvedValue({ user: { id: "user-1" } });
 		mocks.deleteAllChatsByUserId.mockResolvedValue({ deletedCount: 2 });
 
-		const response = await DELETE();
+		const request = new Request("http://localhost/api/history", {
+			method: "DELETE",
+		});
+		const response = await DELETE(request);
 		expect(response.status).toBe(200);
 		const body = await response.json();
 		expect(body.deletedCount).toBe(2);

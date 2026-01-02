@@ -40,6 +40,7 @@ describe("/api/files/upload POST", () => {
 
 		const request = {
 			body: {},
+			headers: new Headers(),
 			formData: async () => formData,
 		} as unknown as Request;
 
@@ -61,6 +62,7 @@ describe("/api/files/upload POST", () => {
 
 		const request = {
 			body: {},
+			headers: new Headers(),
 			formData: async () => formData,
 		} as unknown as Request;
 
@@ -85,6 +87,7 @@ describe("/api/files/upload POST", () => {
 		});
 		const request = {
 			body: {},
+			headers: new Headers(),
 			formData: async () => ({
 				get: () => file,
 			}),
@@ -107,6 +110,7 @@ describe("/api/files/upload POST", () => {
 		});
 		const request = {
 			body: {},
+			headers: new Headers(),
 			formData: async () => ({
 				get: () => file,
 			}),
@@ -124,6 +128,7 @@ describe("/api/files/upload POST", () => {
 
 		const request = {
 			body: {},
+			headers: new Headers(),
 			formData: async () => {
 				throw new Error("FormData parsing error");
 			},

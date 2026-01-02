@@ -13,6 +13,7 @@ interface AppMetrics {
 	aiResponseLatency: Histogram;
 	aiTokensUsed: Counter;
 	rateLimitHits: Counter;
+	chatRequestsCount: Counter;
 	chatMessagesProcessed: Counter;
 	healthCheckLatency: Histogram;
 }
@@ -56,8 +57,12 @@ export function getMetrics(): AppMetrics {
 			description: "Number of rate limit hits",
 		}),
 
+		chatRequestsCount: m.createCounter("chat.requests.count", {
+			description: "Total chat requests (one per user prompt)",
+		}),
+
 		chatMessagesProcessed: m.createCounter("chat.messages.processed", {
-			description: "Total chat messages processed",
+			description: "Total chat messages processed (assistant responses)",
 		}),
 
 		healthCheckLatency: m.createHistogram("health.check.latency_ms", {
@@ -100,7 +105,17 @@ export function recordRateLimitHit(attributes: {
 }
 
 /**
- * Record a processed chat message.
+ * Record a chat request (one per user prompt).
+ */
+export function recordChatRequest(attributes: {
+	model: string;
+	userId?: string;
+}): void {
+	getMetrics().chatRequestsCount.add(1, attributes);
+}
+
+/**
+ * Record a processed chat message (assistant response).
  */
 export function recordChatMessage(attributes: {
 	model: string;

@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+	bindRequestContext,
+	captureRequestContext,
 	createRequestContext,
 	generateRequestId,
 	getRequestContext,
+	runWithCapturedContext,
 	runWithContext,
+	runWithRequestContext,
 } from "@/lib/observability/context";
 
 describe("lib/observability/context", () => {
@@ -127,6 +131,112 @@ describe("lib/observability/context", () => {
 				// Outer context restored
 				expect(getRequestContext()?.requestId).toBe("outer-id");
 			});
+		});
+	});
+
+	describe("runWithRequestContext", () => {
+		it("uses requestId from x-request-id header", () => {
+			const request = new Request("https://example.test", {
+				headers: { "x-request-id": "header-request-id" },
+			});
+
+			const result = runWithRequestContext(
+				{ request, service: "test" },
+				() => getRequestContext()?.requestId,
+			);
+
+			expect(result).toBe("header-request-id");
+		});
+
+		it("falls back to x-vercel-id when x-request-id is missing", () => {
+			const request = new Request("https://example.test", {
+				headers: { "x-vercel-id": "vercel-request-id" },
+			});
+
+			const result = runWithRequestContext(
+				{ request, service: "test" },
+				() => getRequestContext()?.requestId,
+			);
+
+			expect(result).toBe("vercel-request-id");
+		});
+
+		it("prefers x-request-id when both headers are present", () => {
+			const request = new Request("https://example.test", {
+				headers: {
+					"x-request-id": "primary-request-id",
+					"x-vercel-id": "secondary-request-id",
+				},
+			});
+
+			const result = runWithRequestContext(
+				{ request, service: "test" },
+				() => getRequestContext()?.requestId,
+			);
+
+			expect(result).toBe("primary-request-id");
+		});
+
+		it("generates a requestId when no headers are provided", () => {
+			const request = new Request("https://example.test");
+
+			const result = runWithRequestContext(
+				{ request, service: "test" },
+				() => getRequestContext()?.requestId,
+			);
+
+			expect(result).toMatch(/^req_/);
+		});
+	});
+
+	describe("captureRequestContext", () => {
+		it("reuses captured context outside the original async scope", () => {
+			const initialContext = createRequestContext({
+				service: "test",
+				requestId: "captured-id",
+			});
+			let captured: ReturnType<typeof captureRequestContext> | undefined;
+
+			runWithContext(initialContext, () => {
+				captured = captureRequestContext();
+			});
+
+			const result = runWithCapturedContext(captured, () => {
+				return getRequestContext()?.requestId;
+			});
+
+			expect(result).toBe("captured-id");
+			expect(getRequestContext()).toBeUndefined();
+		});
+	});
+
+	describe("bindRequestContext", () => {
+		it("runs callbacks with the captured request context", () => {
+			const initialContext = createRequestContext({
+				service: "test",
+				requestId: "bound-id",
+			});
+			let runInBackground: ReturnType<typeof bindRequestContext>;
+
+			runWithContext(initialContext, () => {
+				runInBackground = bindRequestContext();
+			});
+
+			const result = runInBackground(() => getRequestContext()?.requestId);
+			expect(result).toBe("bound-id");
+			expect(getRequestContext()).toBeUndefined();
+		});
+
+		it("uses the provided context when explicitly passed", () => {
+			const explicitContext = createRequestContext({
+				service: "test",
+				requestId: "explicit-id",
+			});
+			const runInBackground = bindRequestContext(explicitContext);
+
+			const result = runInBackground(() => getRequestContext()?.requestId);
+			expect(result).toBe("explicit-id");
+			expect(getRequestContext()).toBeUndefined();
 		});
 	});
 });

@@ -38,12 +38,12 @@ import type { DBMessage } from "@/lib/db/schema";
 import { ChatSDKError } from "@/lib/errors";
 import {
 	createLogger,
-	createRequestContext,
 	recordAiLatency,
 	recordChatMessage,
+	recordChatRequest,
 	recordRateLimitHit,
 	recordTokenUsage,
-	runWithContext,
+	runWithRequestContext,
 } from "@/lib/observability";
 import type { ChatMessage } from "@/lib/types";
 import type { AppUsage } from "@/lib/usage";
@@ -73,6 +73,35 @@ const getTokenlensCatalog = cache(
 	{ revalidate: 24 * 60 * 60 }, // 24 hours
 );
 
+async function computeUsageWithTokenlens(
+	selectedChatModel: ChatModel["id"],
+	usage: UsageLike | undefined,
+	chatId: string,
+): Promise<AppUsage | undefined> {
+	if (!usage) {
+		return undefined;
+	}
+
+	try {
+		const providers = await getTokenlensCatalog();
+		const modelId = myProvider.languageModel(selectedChatModel).modelId;
+
+		if (!(modelId && providers)) {
+			return usage as AppUsage;
+		}
+
+		const summary = getUsage({ modelId, usage, providers });
+		return { ...usage, ...summary, modelId } as AppUsage;
+	} catch (err) {
+		chatLogger.warn({
+			event: "chat.tokenlens.failed",
+			chatId,
+			error: err instanceof Error ? err.message : String(err),
+		});
+		return usage as AppUsage;
+	}
+}
+
 export function getStreamContext() {
 	if (!globalStreamContext) {
 		try {
@@ -94,11 +123,8 @@ export function getStreamContext() {
 }
 
 export function POST(request: Request) {
-	const requestId = request.headers.get("x-request-id") ?? undefined;
-	const ctx = createRequestContext({ service: "chat", requestId });
-
 	// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: legacy
-	return runWithContext(ctx, async () => {
+	return runWithRequestContext({ request, service: "chat" }, async () => {
 		let requestBody: PostRequestBody;
 		let streamId: string | undefined;
 		let aiStartTime: number | undefined;
@@ -170,7 +196,7 @@ export function POST(request: Request) {
 				},
 			});
 
-			if (messageCount > maxMessagesPerDay) {
+			if (messageCount >= maxMessagesPerDay) {
 				recordRateLimitHit({ service: "chat", userId: session.user.id });
 				chatLogger.warn({
 					event: "chat.rate_limited",
@@ -250,6 +276,11 @@ export function POST(request: Request) {
 				},
 			});
 
+			recordChatRequest({
+				model: selectedChatModel,
+				userId: session.user.id,
+			});
+
 			const newStreamId = generateUUID();
 			streamId = newStreamId;
 			await createStreamId({ streamId: newStreamId, chatId: id });
@@ -306,54 +337,15 @@ export function POST(request: Request) {
 								});
 							}
 
-							try {
-								const providers = await getTokenlensCatalog();
-								const modelId =
-									myProvider.languageModel(selectedChatModel).modelId;
-								if (!modelId) {
-									finalMergedUsage = usage;
-									dataStream.write({
-										type: "data-usage",
-										data: finalMergedUsage,
-									});
-									return;
-								}
-
-								if (!providers) {
-									finalMergedUsage = usage;
-									dataStream.write({
-										type: "data-usage",
-										data: finalMergedUsage,
-									});
-									return;
-								}
-
-								const summary = getUsage({
-									modelId,
-									usage: usage as UsageLike,
-									providers,
-								});
-								finalMergedUsage = {
-									...usage,
-									...summary,
-									modelId,
-								} as AppUsage;
-								dataStream.write({
-									type: "data-usage",
-									data: finalMergedUsage,
-								});
-							} catch (err) {
-								chatLogger.warn({
-									event: "chat.tokenlens.failed",
-									chatId: id,
-									error: err instanceof Error ? err.message : String(err),
-								});
-								finalMergedUsage = usage;
-								dataStream.write({
-									type: "data-usage",
-									data: finalMergedUsage,
-								});
-							}
+							finalMergedUsage = await computeUsageWithTokenlens(
+								selectedChatModel,
+								usage as UsageLike,
+								id,
+							);
+							dataStream.write({
+								type: "data-usage",
+								data: finalMergedUsage,
+							});
 						},
 					});
 

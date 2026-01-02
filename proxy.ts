@@ -1,18 +1,11 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
-import { isDevelopmentEnvironment } from "./lib/constants";
+import { isDevelopmentEnvironment } from "@/lib/constants";
+import { generateRequestId } from "@/lib/observability";
 
 const PUBLIC_ROUTES = new Set(["/login"]);
 const PUBLIC_FILE_EXTENSION_REGEX = /\.(?:ico|jpe?g|png|svg|gif|webp)$/i;
 const REQUEST_ID_HEADER = "x-request-id";
-
-/**
- * Generate a unique request ID for correlation.
- * Format: req_<timestamp_base36>_<random_base36>
- */
-function generateRequestId(): string {
-	return `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 9)}`;
-}
 
 function isPublicStaticAsset(pathname: string, isApiRoute: boolean): boolean {
 	return PUBLIC_FILE_EXTENSION_REGEX.test(pathname) && !isApiRoute;
@@ -71,7 +64,13 @@ export async function proxy(request: NextRequest) {
 	}
 
 	if (pathname.startsWith("/ping")) {
-		return new Response("pong", { status: 200 });
+		const requestId =
+			request.headers.get(REQUEST_ID_HEADER) ??
+			request.headers.get("x-vercel-id") ??
+			generateRequestId();
+		const response = new Response("pong", { status: 200 });
+		response.headers.set(REQUEST_ID_HEADER, requestId);
+		return response;
 	}
 
 	// Inject request ID for API routes even if exempt from auth

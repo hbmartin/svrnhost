@@ -23,10 +23,14 @@ import { generateHashedPassword } from "./utils";
 export async function getUser(email: string): Promise<User[]> {
 	try {
 		return await db.select().from(user).where(eq(user.email, email));
-	} catch (_error) {
+	} catch (error) {
+		if (error instanceof ChatSDKError) {
+			throw error;
+		}
+		const cause = error instanceof Error ? error.message : String(error);
 		throw new ChatSDKError(
 			"bad_request:database",
-			"Failed to get user by email",
+			`Failed to get user by email: ${cause}`,
 		);
 	}
 }
@@ -40,10 +44,14 @@ export async function getUserByPhone(phone: string): Promise<User | null> {
 			.limit(1);
 
 		return matchedUser ?? null;
-	} catch (_error) {
+	} catch (error) {
+		if (error instanceof ChatSDKError) {
+			throw error;
+		}
+		const cause = error instanceof Error ? error.message : String(error);
 		throw new ChatSDKError(
 			"bad_request:database",
-			"Failed to get user by phone",
+			`Failed to get user by phone: ${cause}`,
 		);
 	}
 }
@@ -60,8 +68,15 @@ export async function createUser(
 			.insert(user)
 			.values({ email, password: hashedPassword, phone })
 			.returning();
-	} catch (_error) {
-		throw new ChatSDKError("bad_request:database", "Failed to create user");
+	} catch (error) {
+		if (error instanceof ChatSDKError) {
+			throw error;
+		}
+		const cause = error instanceof Error ? error.message : String(error);
+		throw new ChatSDKError(
+			"bad_request:database",
+			`Failed to create user: ${cause}`,
+		);
 	}
 }
 
@@ -81,8 +96,15 @@ export async function saveChat({
 			userId,
 			title,
 		});
-	} catch (_error) {
-		throw new ChatSDKError("bad_request:database", "Failed to save chat");
+	} catch (error) {
+		if (error instanceof ChatSDKError) {
+			throw error;
+		}
+		const cause = error instanceof Error ? error.message : String(error);
+		throw new ChatSDKError(
+			"bad_request:database",
+			`Failed to save chat: ${cause}`,
+		);
 	}
 }
 
@@ -94,10 +116,14 @@ export async function deleteChatById({ id }: { id: string }) {
 			.where(eq(chat.id, id))
 			.returning();
 		return chatsDeleted;
-	} catch (_error) {
+	} catch (error) {
+		if (error instanceof ChatSDKError) {
+			throw error;
+		}
+		const cause = error instanceof Error ? error.message : String(error);
 		throw new ChatSDKError(
 			"bad_request:database",
-			"Failed to delete chat by id",
+			`Failed to delete chat by id: ${cause}`,
 		);
 	}
 }
@@ -111,12 +137,32 @@ export async function deleteAllChatsByUserId({ userId }: { userId: string }) {
 			.returning();
 
 		return { deletedCount: deletedChats.length };
-	} catch (_error) {
+	} catch (error) {
+		if (error instanceof ChatSDKError) {
+			throw error;
+		}
+		const cause = error instanceof Error ? error.message : String(error);
 		throw new ChatSDKError(
 			"bad_request:database",
-			"Failed to delete all chats by user id",
+			`Failed to delete all chats by user id: ${cause}`,
 		);
 	}
+}
+
+async function getCursorChat(cursorId: string): Promise<Chat> {
+	const [selectedChat] = await db
+		.select()
+		.from(chat)
+		.where(eq(chat.id, cursorId))
+		.limit(1);
+
+	if (!selectedChat) {
+		throw new ChatSDKError(
+			"not_found:database",
+			`Chat with id ${cursorId} not found`,
+		);
+	}
+	return selectedChat;
 }
 
 export async function getChatsByUserId({
@@ -145,38 +191,14 @@ export async function getChatsByUserId({
 				.orderBy(desc(chat.createdAt))
 				.limit(extendedLimit);
 
-		let filteredChats: Chat[] = [];
+		let filteredChats: Chat[];
 
 		if (startingAfter) {
-			const [selectedChat] = await db
-				.select()
-				.from(chat)
-				.where(eq(chat.id, startingAfter))
-				.limit(1);
-
-			if (!selectedChat) {
-				throw new ChatSDKError(
-					"not_found:database",
-					`Chat with id ${startingAfter} not found`,
-				);
-			}
-
-			filteredChats = await query(lt(chat.createdAt, selectedChat.createdAt));
+			const cursorChat = await getCursorChat(startingAfter);
+			filteredChats = await query(lt(chat.createdAt, cursorChat.createdAt));
 		} else if (endingBefore) {
-			const [selectedChat] = await db
-				.select()
-				.from(chat)
-				.where(eq(chat.id, endingBefore))
-				.limit(1);
-
-			if (!selectedChat) {
-				throw new ChatSDKError(
-					"not_found:database",
-					`Chat with id ${endingBefore} not found`,
-				);
-			}
-
-			filteredChats = await query(gt(chat.createdAt, selectedChat.createdAt));
+			const cursorChat = await getCursorChat(endingBefore);
+			filteredChats = await query(gt(chat.createdAt, cursorChat.createdAt));
 		} else {
 			filteredChats = await query();
 		}
@@ -191,9 +213,10 @@ export async function getChatsByUserId({
 		if (error instanceof ChatSDKError) {
 			throw error;
 		}
+		const cause = error instanceof Error ? error.message : String(error);
 		throw new ChatSDKError(
 			"bad_request:database",
-			"Failed to get chats by user id",
+			`Failed to get chats by user id: ${cause}`,
 		);
 	}
 }
@@ -206,16 +229,30 @@ export async function getChatById({ id }: { id: string }) {
 		}
 
 		return selectedChat;
-	} catch (_error) {
-		throw new ChatSDKError("bad_request:database", "Failed to get chat by id");
+	} catch (error) {
+		if (error instanceof ChatSDKError) {
+			throw error;
+		}
+		const cause = error instanceof Error ? error.message : String(error);
+		throw new ChatSDKError(
+			"bad_request:database",
+			`Failed to get chat by id: ${cause}`,
+		);
 	}
 }
 
 export async function saveMessages({ messages }: { messages: DBMessage[] }) {
 	try {
 		return await db.insert(message).values(messages);
-	} catch (_error) {
-		throw new ChatSDKError("bad_request:database", "Failed to save messages");
+	} catch (error) {
+		if (error instanceof ChatSDKError) {
+			throw error;
+		}
+		const cause = error instanceof Error ? error.message : String(error);
+		throw new ChatSDKError(
+			"bad_request:database",
+			`Failed to save messages: ${cause}`,
+		);
 	}
 }
 
@@ -226,10 +263,14 @@ export async function getMessagesByChatId({ id }: { id: string }) {
 			.from(message)
 			.where(eq(message.chatId, id))
 			.orderBy(asc(message.createdAt));
-	} catch (_error) {
+	} catch (error) {
+		if (error instanceof ChatSDKError) {
+			throw error;
+		}
+		const cause = error instanceof Error ? error.message : String(error);
 		throw new ChatSDKError(
 			"bad_request:database",
-			"Failed to get messages by chat id",
+			`Failed to get messages by chat id: ${cause}`,
 		);
 	}
 }
@@ -260,18 +301,29 @@ export async function voteMessage({
 			messageId,
 			isUpvoted: type === "up",
 		});
-	} catch (_error) {
-		throw new ChatSDKError("bad_request:database", "Failed to vote message");
+	} catch (error) {
+		if (error instanceof ChatSDKError) {
+			throw error;
+		}
+		const cause = error instanceof Error ? error.message : String(error);
+		throw new ChatSDKError(
+			"bad_request:database",
+			`Failed to vote message: ${cause}`,
+		);
 	}
 }
 
 export async function getVotesByChatId({ id }: { id: string }) {
 	try {
 		return await db.select().from(vote).where(eq(vote.chatId, id));
-	} catch (_error) {
+	} catch (error) {
+		if (error instanceof ChatSDKError) {
+			throw error;
+		}
+		const cause = error instanceof Error ? error.message : String(error);
 		throw new ChatSDKError(
 			"bad_request:database",
-			"Failed to get votes by chat id",
+			`Failed to get votes by chat id: ${cause}`,
 		);
 	}
 }
@@ -285,10 +337,14 @@ export async function getDocumentsById({ id }: { id: string }) {
 			.orderBy(asc(document.createdAt));
 
 		return documents;
-	} catch (_error) {
+	} catch (error) {
+		if (error instanceof ChatSDKError) {
+			throw error;
+		}
+		const cause = error instanceof Error ? error.message : String(error);
 		throw new ChatSDKError(
 			"bad_request:database",
-			"Failed to get documents by id",
+			`Failed to get documents by id: ${cause}`,
 		);
 	}
 }
@@ -302,10 +358,14 @@ export async function getDocumentById({ id }: { id: string }) {
 			.orderBy(desc(document.createdAt));
 
 		return selectedDocument;
-	} catch (_error) {
+	} catch (error) {
+		if (error instanceof ChatSDKError) {
+			throw error;
+		}
+		const cause = error instanceof Error ? error.message : String(error);
 		throw new ChatSDKError(
 			"bad_request:database",
-			"Failed to get document by id",
+			`Failed to get document by id: ${cause}`,
 		);
 	}
 }
@@ -317,10 +377,14 @@ export async function saveSuggestions({
 }) {
 	try {
 		return await db.insert(suggestion).values(suggestions);
-	} catch (_error) {
+	} catch (error) {
+		if (error instanceof ChatSDKError) {
+			throw error;
+		}
+		const cause = error instanceof Error ? error.message : String(error);
 		throw new ChatSDKError(
 			"bad_request:database",
-			"Failed to save suggestions",
+			`Failed to save suggestions: ${cause}`,
 		);
 	}
 }
@@ -335,10 +399,14 @@ export async function getSuggestionsByDocumentId({
 			.select()
 			.from(suggestion)
 			.where(eq(suggestion.documentId, documentId));
-	} catch (_error) {
+	} catch (error) {
+		if (error instanceof ChatSDKError) {
+			throw error;
+		}
+		const cause = error instanceof Error ? error.message : String(error);
 		throw new ChatSDKError(
 			"bad_request:database",
-			"Failed to get suggestions by document id",
+			`Failed to get suggestions by document id: ${cause}`,
 		);
 	}
 }
@@ -346,10 +414,14 @@ export async function getSuggestionsByDocumentId({
 export async function getMessageById({ id }: { id: string }) {
 	try {
 		return await db.select().from(message).where(eq(message.id, id));
-	} catch (_error) {
+	} catch (error) {
+		if (error instanceof ChatSDKError) {
+			throw error;
+		}
+		const cause = error instanceof Error ? error.message : String(error);
 		throw new ChatSDKError(
 			"bad_request:database",
-			"Failed to get message by id",
+			`Failed to get message by id: ${cause}`,
 		);
 	}
 }
@@ -367,10 +439,14 @@ export async function deleteMessagesByChatIdAfterTimestamp({
 			.delete(message)
 			.where(and(eq(message.chatId, chatId), gte(message.createdAt, timestamp)))
 			.returning();
-	} catch (_error) {
+	} catch (error) {
+		if (error instanceof ChatSDKError) {
+			throw error;
+		}
+		const cause = error instanceof Error ? error.message : String(error);
 		throw new ChatSDKError(
 			"bad_request:database",
-			"Failed to delete messages by chat id after timestamp",
+			`Failed to delete messages by chat id after timestamp: ${cause}`,
 		);
 	}
 }
@@ -388,10 +464,14 @@ export async function updateChatLastContextById({
 			.update(chat)
 			.set({ lastContext: context })
 			.where(eq(chat.id, chatId));
-	} catch (_error) {
+	} catch (error) {
+		if (error instanceof ChatSDKError) {
+			throw error;
+		}
+		const cause = error instanceof Error ? error.message : String(error);
 		throw new ChatSDKError(
 			"bad_request:database",
-			"Failed to update chat last context by id",
+			`Failed to update chat last context by id: ${cause}`,
 		);
 	}
 }
@@ -422,10 +502,14 @@ export async function getMessageCountByUserId({
 			.execute();
 
 		return stats?.count ?? 0;
-	} catch (_error) {
+	} catch (error) {
+		if (error instanceof ChatSDKError) {
+			throw error;
+		}
+		const cause = error instanceof Error ? error.message : String(error);
 		throw new ChatSDKError(
 			"bad_request:database",
-			"Failed to get message count by user id",
+			`Failed to get message count by user id: ${cause}`,
 		);
 	}
 }
@@ -441,10 +525,14 @@ export async function createStreamId({
 		await db
 			.insert(stream)
 			.values({ id: streamId, chatId, createdAt: new Date() });
-	} catch (_error) {
+	} catch (error) {
+		if (error instanceof ChatSDKError) {
+			throw error;
+		}
+		const cause = error instanceof Error ? error.message : String(error);
 		throw new ChatSDKError(
 			"bad_request:database",
-			"Failed to create stream id",
+			`Failed to create stream id: ${cause}`,
 		);
 	}
 }
@@ -459,10 +547,14 @@ export async function getStreamIdsByChatId({ chatId }: { chatId: string }) {
 			.execute();
 
 		return streamIds.map(({ id }) => id);
-	} catch (_error) {
+	} catch (error) {
+		if (error instanceof ChatSDKError) {
+			throw error;
+		}
+		const cause = error instanceof Error ? error.message : String(error);
 		throw new ChatSDKError(
 			"bad_request:database",
-			"Failed to get stream ids by chat id",
+			`Failed to get stream ids by chat id: ${cause}`,
 		);
 	}
 }
@@ -618,10 +710,14 @@ export async function getLatestChatForUser({ userId }: { userId: string }) {
 			.limit(1);
 
 		return recentChat ?? null;
-	} catch (_error) {
+	} catch (error) {
+		if (error instanceof ChatSDKError) {
+			throw error;
+		}
+		const cause = error instanceof Error ? error.message : String(error);
 		throw new ChatSDKError(
 			"bad_request:database",
-			"Failed to get latest chat for user",
+			`Failed to get latest chat for user: ${cause}`,
 		);
 	}
 }
@@ -667,10 +763,14 @@ export async function updateMessageMetadata({
 }) {
 	try {
 		return await db.update(message).set({ metadata }).where(eq(message.id, id));
-	} catch (_error) {
+	} catch (error) {
+		if (error instanceof ChatSDKError) {
+			throw error;
+		}
+		const cause = error instanceof Error ? error.message : String(error);
 		throw new ChatSDKError(
 			"bad_request:database",
-			"Failed to update message metadata",
+			`Failed to update message metadata: ${cause}`,
 		);
 	}
 }
@@ -701,10 +801,14 @@ export async function getFailedOutboundMessages({
 				);
 			})
 			.slice(0, limit);
-	} catch (_error) {
+	} catch (error) {
+		if (error instanceof ChatSDKError) {
+			throw error;
+		}
+		const cause = error instanceof Error ? error.message : String(error);
 		throw new ChatSDKError(
 			"bad_request:database",
-			"Failed to get failed outbound messages",
+			`Failed to get failed outbound messages: ${cause}`,
 		);
 	}
 }

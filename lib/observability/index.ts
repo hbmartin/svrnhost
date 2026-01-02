@@ -1,11 +1,14 @@
-// Types
-
-// Context propagation
+// biome-ignore lint/performance/noBarrelFile: intentional module boundary export
 export {
+	bindRequestContext,
+	captureRequestContext,
 	createRequestContext,
+	createRequestContextFromRequest,
 	generateRequestId,
 	getRequestContext,
+	runWithCapturedContext,
 	runWithContext,
+	runWithRequestContext,
 } from "./context";
 // Logger
 export { createLogger, log } from "./logger";
@@ -14,6 +17,7 @@ export {
 	getMetrics,
 	recordAiLatency,
 	recordChatMessage,
+	recordChatRequest,
 	recordHealthCheckLatency,
 	recordRateLimitHit,
 	recordTokenUsage,
