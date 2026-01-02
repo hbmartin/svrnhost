@@ -1,3 +1,7 @@
+import { createLogger, getRequestContext } from "@/lib/observability";
+
+const errorLogger = createLogger("error");
+
 export type ErrorType =
 	| "bad_request"
 	| "unauthorized"
@@ -55,23 +59,32 @@ export class ChatSDKError extends Error {
 	toResponse() {
 		const code: ErrorCode = `${this.type}:${this.surface}`;
 		const visibility = visibilityBySurface[this.surface];
+		const ctx = getRequestContext();
+		const requestId = ctx?.requestId;
 
 		const { message, cause, statusCode } = this;
 
 		if (visibility === "log") {
-			console.error({
-				code,
-				message,
-				cause,
+			errorLogger.error({
+				event: "error.logged",
+				error: message,
+				details: { code, cause },
 			});
 
 			return Response.json(
-				{ code: "", message: "Something went wrong. Please try again later." },
+				{
+					code: "",
+					message: "Something went wrong. Please try again later.",
+					requestId,
+				},
 				{ status: statusCode },
 			);
 		}
 
-		return Response.json({ code, message, cause }, { status: statusCode });
+		return Response.json(
+			{ code, message, cause, requestId },
+			{ status: statusCode },
+		);
 	}
 }
 

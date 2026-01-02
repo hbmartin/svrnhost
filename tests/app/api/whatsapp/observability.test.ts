@@ -427,7 +427,8 @@ describe("setWhatsAppSpanAttributes", () => {
 			messageSid: "SM123",
 			status: "sent",
 		});
-		expect(span.setAttribute).toHaveBeenCalledTimes(4);
+		// 5 calls: request_id (using messageSid as fallback), event, direction, messageSid, status
+		expect(span.setAttribute).toHaveBeenCalledTimes(5);
 	});
 
 	it("does not set undefined attributes", () => {
