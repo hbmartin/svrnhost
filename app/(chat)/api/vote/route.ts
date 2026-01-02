@@ -62,7 +62,7 @@ export function PATCH(request: Request) {
 		const chat = await getChatById({ id: chatId });
 
 		if (!chat) {
-			return new ChatSDKError("not_found:vote").toResponse();
+			return new ChatSDKError("not_found:chat").toResponse();
 		}
 
 		if (chat.userId !== session.user.id) {

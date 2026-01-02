@@ -183,7 +183,8 @@ function handlePendingLogOutcome(
 				),
 			),
 		);
-		return new Response("Server misconfigured", { status: 500 });
+		// Return 200 to prevent Twilio retry storms
+		return createTwimlResponse();
 	}
 
 	return null; // outcome === "created", continue processing
