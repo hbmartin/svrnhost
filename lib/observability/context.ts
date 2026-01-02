@@ -132,7 +132,7 @@ export function createRequestContext(
 export function createRequestContextFromRequest(
 	params: RequestContextFromRequestParams,
 ): RequestContext {
-	const requestId = getRequestIdFromHeaders(params.request.headers);
+	const requestId = getRequestIdFromHeaders(params.request?.headers);
 	return createRequestContext({
 		service: params.service,
 		requestId,
@@ -142,7 +142,12 @@ export function createRequestContextFromRequest(
 	});
 }
 
-function getRequestIdFromHeaders(headers: Headers): string | undefined {
+function getRequestIdFromHeaders(
+	headers: Headers | undefined,
+): string | undefined {
+	if (!headers) {
+		return undefined;
+	}
 	for (const headerName of requestIdHeaderNames) {
 		const value = headers.get(headerName);
 		if (value) {

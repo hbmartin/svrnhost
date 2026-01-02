@@ -73,6 +73,35 @@ const getTokenlensCatalog = cache(
 	{ revalidate: 24 * 60 * 60 }, // 24 hours
 );
 
+async function computeUsageWithTokenlens(
+	selectedChatModel: ChatModel,
+	usage: UsageLike | undefined,
+	chatId: string,
+): Promise<AppUsage | undefined> {
+	if (!usage) {
+		return undefined;
+	}
+
+	try {
+		const providers = await getTokenlensCatalog();
+		const modelId = myProvider.languageModel(selectedChatModel).modelId;
+
+		if (!(modelId && providers)) {
+			return usage as AppUsage;
+		}
+
+		const summary = getUsage({ modelId, usage, providers });
+		return { ...usage, ...summary, modelId } as AppUsage;
+	} catch (err) {
+		chatLogger.warn({
+			event: "chat.tokenlens.failed",
+			chatId,
+			error: err instanceof Error ? err.message : String(err),
+		});
+		return usage as AppUsage;
+	}
+}
+
 export function getStreamContext() {
 	if (!globalStreamContext) {
 		try {
@@ -308,54 +337,15 @@ export function POST(request: Request) {
 								});
 							}
 
-							try {
-								const providers = await getTokenlensCatalog();
-								const modelId =
-									myProvider.languageModel(selectedChatModel).modelId;
-								if (!modelId) {
-									finalMergedUsage = usage;
-									dataStream.write({
-										type: "data-usage",
-										data: finalMergedUsage,
-									});
-									return;
-								}
-
-								if (!providers) {
-									finalMergedUsage = usage;
-									dataStream.write({
-										type: "data-usage",
-										data: finalMergedUsage,
-									});
-									return;
-								}
-
-								const summary = getUsage({
-									modelId,
-									usage: usage as UsageLike,
-									providers,
-								});
-								finalMergedUsage = {
-									...usage,
-									...summary,
-									modelId,
-								} as AppUsage;
-								dataStream.write({
-									type: "data-usage",
-									data: finalMergedUsage,
-								});
-							} catch (err) {
-								chatLogger.warn({
-									event: "chat.tokenlens.failed",
-									chatId: id,
-									error: err instanceof Error ? err.message : String(err),
-								});
-								finalMergedUsage = usage;
-								dataStream.write({
-									type: "data-usage",
-									data: finalMergedUsage,
-								});
-							}
+							finalMergedUsage = await computeUsageWithTokenlens(
+								selectedChatModel,
+								usage,
+								id,
+							);
+							dataStream.write({
+								type: "data-usage",
+								data: finalMergedUsage,
+							});
 						},
 					});
 

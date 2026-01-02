@@ -1,6 +1,7 @@
 # Working Guide
 - After adding any code or functionality, write thorough unit tests and check coverage.
 - After making any changes always execute `pnpm format && pnpm build && pnpm test` to verify
+- Fix any pnpm format issues (even if they are unrelated)
 - Never edit files in lib/db/migrations/ - instead run drizzle `pnpm db:generate` to create migrations
 
 # Practical Principles

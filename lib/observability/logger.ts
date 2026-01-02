@@ -12,6 +12,75 @@ interface ServiceLogger {
 	error: (fields: LogFields) => void;
 }
 
+interface EnrichedLogFields extends LogFields {
+	service: string;
+	nodeEnv: string | undefined;
+	vercelEnv: string | undefined;
+	requestId?: string;
+	userId?: string;
+	chatId?: string;
+}
+
+function setSentryScopeTags(
+	scope: Sentry.Scope,
+	service: string,
+	enriched: EnrichedLogFields,
+	fields: LogFields,
+): void {
+	scope.setTag("service", service);
+	scope.setTag("event", fields.event);
+	if (enriched.requestId) {
+		scope.setTag("request_id", enriched.requestId);
+	}
+	if (enriched.userId) {
+		scope.setTag("user_id", enriched.userId);
+	}
+	if (enriched.chatId) {
+		scope.setTag("chat_id", enriched.chatId);
+	}
+	if (fields.direction) {
+		scope.setTag("direction", fields.direction);
+	}
+}
+
+function setSentryScopeExtras(scope: Sentry.Scope, fields: LogFields): void {
+	scope.setExtra("nodeEnv", process.env.NODE_ENV);
+	scope.setExtra("vercelEnv", vercelEnv);
+	if (fields.details) {
+		scope.setExtra("details", fields.details);
+	}
+}
+
+function captureSentryError(fields: LogFields): void {
+	if (fields.exception instanceof Error) {
+		Sentry.captureException(fields.exception);
+	} else {
+		Sentry.captureMessage(fields.error ?? fields.event, "error");
+	}
+}
+
+function captureToSentry(
+	service: string,
+	enriched: EnrichedLogFields,
+	fields: LogFields,
+): void {
+	try {
+		Sentry.withScope((scope) => {
+			setSentryScopeTags(scope, service, enriched, fields);
+			setSentryScopeExtras(scope, fields);
+			captureSentryError(fields);
+		});
+	} catch (sentryError) {
+		console.error(`[${service}] sentry capture failed`, {
+			sentryError:
+				sentryError instanceof Error
+					? sentryError.message
+					: String(sentryError),
+			originalEvent: fields.event,
+		});
+	}
+}
+
 /**
  * Log an event with structured data.
  *
@@ -56,44 +125,7 @@ export function log(service: string, level: LogLevel, fields: LogFields): void {
 	}
 
 	if (level === "error") {
-		try {
-			Sentry.withScope((scope) => {
-				scope.setTag("service", service);
-				scope.setTag("event", fields.event);
-				if (enriched.requestId) {
-					scope.setTag("request_id", enriched.requestId);
-				}
-				if (enriched.userId) {
-					scope.setTag("user_id", enriched.userId);
-				}
-				if (enriched.chatId) {
-					scope.setTag("chat_id", enriched.chatId);
-				}
-				if (fields.direction) {
-					scope.setTag("direction", fields.direction);
-				}
-
-				scope.setExtra("nodeEnv", process.env.NODE_ENV);
-				scope.setExtra("vercelEnv", vercelEnv);
-				if (fields.details) {
-					scope.setExtra("details", fields.details);
-				}
-
-				if (fields.exception instanceof Error) {
-					Sentry.captureException(fields.exception);
-				} else {
-					Sentry.captureMessage(fields.error ?? fields.event, "error");
-				}
-			});
-		} catch (sentryError) {
-			console.error(`[${service}] sentry capture failed`, {
-				sentryError:
-					sentryError instanceof Error
-						? sentryError.message
-						: String(sentryError),
-				originalEvent: fields.event,
-			});
-		}
+		captureToSentry(service, enriched, fields);
 	}
 }
 

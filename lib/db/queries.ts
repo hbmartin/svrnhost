@@ -149,6 +149,22 @@ export async function deleteAllChatsByUserId({ userId }: { userId: string }) {
 	}
 }
 
+async function getCursorChat(cursorId: string): Promise<Chat> {
+	const [selectedChat] = await db
+		.select()
+		.from(chat)
+		.where(eq(chat.id, cursorId))
+		.limit(1);
+
+	if (!selectedChat) {
+		throw new ChatSDKError(
+			"not_found:database",
+			`Chat with id ${cursorId} not found`,
+		);
+	}
+	return selectedChat;
+}
+
 export async function getChatsByUserId({
 	id,
 	limit,
@@ -175,38 +191,14 @@ export async function getChatsByUserId({
 				.orderBy(desc(chat.createdAt))
 				.limit(extendedLimit);
 
-		let filteredChats: Chat[] = [];
+		let filteredChats: Chat[];
 
 		if (startingAfter) {
-			const [selectedChat] = await db
-				.select()
-				.from(chat)
-				.where(eq(chat.id, startingAfter))
-				.limit(1);
-
-			if (!selectedChat) {
-				throw new ChatSDKError(
-					"not_found:database",
-					`Chat with id ${startingAfter} not found`,
-				);
-			}
-
-			filteredChats = await query(lt(chat.createdAt, selectedChat.createdAt));
+			const cursorChat = await getCursorChat(startingAfter);
+			filteredChats = await query(lt(chat.createdAt, cursorChat.createdAt));
 		} else if (endingBefore) {
-			const [selectedChat] = await db
-				.select()
-				.from(chat)
-				.where(eq(chat.id, endingBefore))
-				.limit(1);
-
-			if (!selectedChat) {
-				throw new ChatSDKError(
-					"not_found:database",
-					`Chat with id ${endingBefore} not found`,
-				);
-			}
-
-			filteredChats = await query(gt(chat.createdAt, selectedChat.createdAt));
+			const cursorChat = await getCursorChat(endingBefore);
+			filteredChats = await query(gt(chat.createdAt, cursorChat.createdAt));
 		} else {
 			filteredChats = await query();
 		}

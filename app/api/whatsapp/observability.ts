@@ -80,6 +80,24 @@ function captureSentryError(fields: WhatsAppLogFields): void {
 	}
 }
 
+function captureToSentry(fields: WhatsAppLogFields): void {
+	try {
+		Sentry.withScope((scope) => {
+			setSentryScopeTags(scope, fields);
+			setSentryScopeExtras(scope, fields);
+			captureSentryError(fields);
+		});
+	} catch (sentryError) {
+		console.error("[whatsapp] sentry capture failed", {
+			sentryError:
+				sentryError instanceof Error
+					? sentryError.message
+					: String(sentryError),
+			originalEvent: fields.event,
+		});
+	}
+}
+
 /**
  * Log WhatsApp events with structured data.
  *
@@ -126,21 +144,7 @@ export function logWhatsAppEvent(
 	}
 
 	if (level === "error") {
-		try {
-			Sentry.withScope((scope) => {
-				setSentryScopeTags(scope, enrichedFields);
-				setSentryScopeExtras(scope, enrichedFields);
-				captureSentryError(enrichedFields);
-			});
-		} catch (sentryError) {
-			console.error("[whatsapp] sentry capture failed", {
-				sentryError:
-					sentryError instanceof Error
-						? sentryError.message
-						: String(sentryError),
-				originalEvent: enrichedFields.event,
-			});
-		}
+		captureToSentry(enrichedFields);
 	}
 }
 

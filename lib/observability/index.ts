@@ -1,3 +1,4 @@
+// biome-ignore lint/performance/noBarrelFile: intentional module boundary export
 export {
 	bindRequestContext,
 	captureRequestContext,
