@@ -3,6 +3,7 @@ import {
 	getMetrics,
 	recordAiLatency,
 	recordChatMessage,
+	recordChatRequest,
 	recordHealthCheckLatency,
 	recordRateLimitHit,
 	recordTokenUsage,
@@ -43,6 +44,7 @@ describe("lib/observability/metrics", () => {
 			expect(metrics.aiResponseLatency).toBeDefined();
 			expect(metrics.aiTokensUsed).toBeDefined();
 			expect(metrics.rateLimitHits).toBeDefined();
+			expect(metrics.chatRequestsCount).toBeDefined();
 			expect(metrics.chatMessagesProcessed).toBeDefined();
 			expect(metrics.healthCheckLatency).toBeDefined();
 		});
@@ -117,6 +119,23 @@ describe("lib/observability/metrics", () => {
 			expect(mockAdd).toHaveBeenCalledWith(1, {
 				service: "chat",
 				userId: "user-123",
+			});
+		});
+	});
+
+	describe("recordChatRequest", () => {
+		it("records chat request with model", () => {
+			recordChatRequest({ model: "chat-model" });
+
+			expect(mockAdd).toHaveBeenCalledWith(1, { model: "chat-model" });
+		});
+
+		it("records chat request with userId", () => {
+			recordChatRequest({ model: "chat-model", userId: "user-456" });
+
+			expect(mockAdd).toHaveBeenCalledWith(1, {
+				model: "chat-model",
+				userId: "user-456",
 			});
 		});
 	});

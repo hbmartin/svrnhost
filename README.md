@@ -14,6 +14,52 @@
 - Messaging rails: use Twilio templates for outbound outside 24h window; keep “session” replies via LLM; centralize template registry and opt-in tracking for both WhatsApp and email.
 - Group/intro strategy: pick between Twilio Conversations (limited group automation) vs manual coordinator + invite links; document limits and fallback paths.
 
+## Observability Patterns
+
+### Request context (AsyncLocalStorage)
+
+- Use the module-scoped AsyncLocalStorage helpers in `lib/observability/context.ts` to carry per-request data in Vercel Fluid Compute.
+- Always wrap Node route handlers with `runWithRequestContext({ request, service })` at the top of the handler.
+- Request IDs are read from `x-request-id` or `x-vercel-id`; if missing, a `req_<timestamp>_<random>` ID is generated.
+- Never store per-request data in global mutable state; rely on context accessors like `getRequestContext()`.
+
+```ts
+import { runWithRequestContext } from "@/lib/observability";
+
+export function POST(request: Request) {
+  return runWithRequestContext({ request, service: "example" }, async () => {
+    // handler logic
+  });
+}
+```
+
+### Background work (after, setTimeout, fire-and-forget)
+
+- Capture the current request context once, then re-enter it for deferred work using `bindRequestContext`.
+- This keeps request IDs and log correlation intact for background tasks scheduled inside a request.
+
+```ts
+import { after } from "next/server";
+import { bindRequestContext, runWithRequestContext } from "@/lib/observability";
+
+export function POST(request: Request) {
+  return runWithRequestContext({ request, service: "example" }, async () => {
+    const runInBackground = bindRequestContext();
+    after(() => runInBackground(() => doBackgroundWork()));
+  });
+}
+```
+
+### Logging, tracing, and metrics
+
+- Use `createLogger`/`log` for structured logs; WhatsApp routes use `logWhatsAppEvent`. These enrich logs with context IDs and push errors to Sentry.
+- Use OpenTelemetry spans via `@vercel/otel` and `@opentelemetry/api` for tracing. If you capture a trace context for deferred work, wrap it with `context.with(...)` inside a `bindRequestContext` callback.
+- Record metrics via `lib/observability/metrics.ts` (latency, rate limits, usage) and keep them tied to request context where possible.
+
+### Runtime caveats
+
+- AsyncLocalStorage is Node.js only; avoid relying on it in Edge runtime or middleware. If middleware needs correlation, pass IDs explicitly.
+
 ## Milestones
 
 - M1 Foundations: Implement WhatsApp webhook (validation, rate limits, retries), configure env for Twilio senders/templates, clarify message-type contract to the LLM, add basic health/observability.
