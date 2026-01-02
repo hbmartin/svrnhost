@@ -74,7 +74,7 @@ const getTokenlensCatalog = cache(
 );
 
 async function computeUsageWithTokenlens(
-	selectedChatModel: ChatModel,
+	selectedChatModel: ChatModel["id"],
 	usage: UsageLike | undefined,
 	chatId: string,
 ): Promise<AppUsage | undefined> {
@@ -339,7 +339,7 @@ export function POST(request: Request) {
 
 							finalMergedUsage = await computeUsageWithTokenlens(
 								selectedChatModel,
-								usage,
+								usage as UsageLike,
 								id,
 							);
 							dataStream.write({

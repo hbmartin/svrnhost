@@ -16,9 +16,9 @@ interface EnrichedLogFields extends LogFields {
 	service: string;
 	nodeEnv: string | undefined;
 	vercelEnv: string | undefined;
-	requestId?: string;
-	userId?: string;
-	chatId?: string;
+	requestId?: string | undefined;
+	userId?: string | undefined;
+	chatId?: string | undefined;
 }
 
 function setSentryScopeTags(

@@ -37,7 +37,7 @@ type ValidationResult<T> =
 
 function getWebhookUrl(
 	requestUrl: string,
-	payload: { MessageSid: string; WaId: string },
+	payload: { MessageSid: string; WaId?: string | undefined },
 ): ValidationResult<string> {
 	try {
 		const twilioConfig = getTwilioConfig();
@@ -82,7 +82,7 @@ function createTwimlResponse(): Response {
 }
 
 interface PendingLogContext {
-	payload: { MessageSid: string; WaId: string };
+	payload: { MessageSid: string; WaId?: string | undefined };
 	requestUrl: string;
 	webhookUrl: string;
 	runInBackground: <T>(fn: () => T) => T;
@@ -193,7 +193,12 @@ function validateSignature(
 	signature: string | null,
 	webhookUrl: string,
 	rawParams: Record<string, string>,
-	payload: { MessageSid: string; WaId: string; From: string; To: string },
+	payload: {
+		MessageSid: string;
+		WaId?: string | undefined;
+		From: string;
+		To: string;
+	},
 	runInBackground: <T>(fn: () => T) => T,
 	requestUrl: string,
 ): ValidationResult<void> {
