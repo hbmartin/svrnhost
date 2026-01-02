@@ -191,9 +191,10 @@ export async function getChatsByUserId({
 		if (error instanceof ChatSDKError) {
 			throw error;
 		}
+		const cause = error instanceof Error ? error.message : String(error);
 		throw new ChatSDKError(
 			"bad_request:database",
-			"Failed to get chats by user id",
+			`Failed to get chats by user id: ${cause}`,
 		);
 	}
 }

@@ -38,12 +38,11 @@ import type { DBMessage } from "@/lib/db/schema";
 import { ChatSDKError } from "@/lib/errors";
 import {
 	createLogger,
-	createRequestContext,
 	recordAiLatency,
 	recordChatMessage,
 	recordRateLimitHit,
 	recordTokenUsage,
-	runWithContext,
+	runWithRequestContext,
 } from "@/lib/observability";
 import type { ChatMessage } from "@/lib/types";
 import type { AppUsage } from "@/lib/usage";
@@ -94,11 +93,8 @@ export function getStreamContext() {
 }
 
 export function POST(request: Request) {
-	const requestId = request.headers.get("x-request-id") ?? undefined;
-	const ctx = createRequestContext({ service: "chat", requestId });
-
 	// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: legacy
-	return runWithContext(ctx, async () => {
+	return runWithRequestContext({ request, service: "chat" }, async () => {
 		let requestBody: PostRequestBody;
 		let streamId: string | undefined;
 		let aiStartTime: number | undefined;
@@ -170,7 +166,7 @@ export function POST(request: Request) {
 				},
 			});
 
-			if (messageCount > maxMessagesPerDay) {
+			if (messageCount >= maxMessagesPerDay) {
 				recordRateLimitHit({ service: "chat", userId: session.user.id });
 				chatLogger.warn({
 					event: "chat.rate_limited",
@@ -248,6 +244,11 @@ export function POST(request: Request) {
 					role: "user",
 					priorMessageCount: messagesFromDb.length,
 				},
+			});
+
+			recordChatMessage({
+				model: selectedChatModel,
+				userId: session.user.id,
 			});
 
 			const newStreamId = generateUUID();

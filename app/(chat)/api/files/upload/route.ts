@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { auth } from "@/app/(auth)/auth";
+import { runWithRequestContext } from "@/lib/observability";
 
 // Use Blob instead of File since File is not available in Node.js environment
 const FileSchema = z.object({
@@ -17,52 +18,60 @@ const FileSchema = z.object({
 		}),
 });
 
-export async function POST(request: Request) {
-	const session = await auth();
+export function POST(request: Request) {
+	return runWithRequestContext(
+		{ request, service: "files_upload" },
+		async () => {
+			const session = await auth();
 
-	if (!session) {
-		return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-	}
+			if (!session) {
+				return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+			}
 
-	if (request.body === null) {
-		return new Response("Request body is empty", { status: 400 });
-	}
+			if (request.body === null) {
+				return new Response("Request body is empty", { status: 400 });
+			}
 
-	try {
-		const formData = await request.formData();
-		const file = formData.get("file") as Blob;
+			try {
+				const formData = await request.formData();
+				const file = formData.get("file") as Blob;
 
-		if (!file) {
-			return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
-		}
+				if (!file) {
+					return NextResponse.json(
+						{ error: "No file uploaded" },
+						{ status: 400 },
+					);
+				}
 
-		const validatedFile = FileSchema.safeParse({ file });
+				const validatedFile = FileSchema.safeParse({ file });
 
-		if (!validatedFile.success) {
-			const errorMessage = validatedFile.error.issues
-				.map((error) => error.message)
-				.join(", ");
+				if (!validatedFile.success) {
+					const errorMessage = validatedFile.error.issues
+						.map((error) => error.message)
+						.join(", ");
 
-			return NextResponse.json({ error: errorMessage }, { status: 400 });
-		}
+					return NextResponse.json({ error: errorMessage }, { status: 400 });
+				}
 
-		// Get filename from formData since Blob doesn't have name property
-		const filename = (formData.get("file") as File).name;
-		const fileBuffer = await file.arrayBuffer();
+				// Get filename from formData since Blob doesn't have name property
+				const filename = (formData.get("file") as File).name;
+				const fileBuffer = await file.arrayBuffer();
 
-		try {
-			const data = await put(`${filename}`, fileBuffer, {
-				access: "public",
-			});
+				try {
+					const data = await put(`${filename}`, fileBuffer, {
+						access: "public",
+					});
 
-			return NextResponse.json(data);
-		} catch (_error) {
-			return NextResponse.json({ error: "Upload failed" }, { status: 500 });
-		}
-	} catch (_error) {
-		return NextResponse.json(
-			{ error: "Failed to process request" },
-			{ status: 500 },
-		);
-	}
+					return NextResponse.json(data);
+				} catch (_error) {
+					return NextResponse.json({ error: "Upload failed" }, { status: 500 });
+				}
+			} catch (_error) {
+				return NextResponse.json(
+					{ error: "Failed to process request" },
+					{ status: 500 },
+				);
+			}
+		},
+	);
 }

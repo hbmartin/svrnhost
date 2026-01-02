@@ -1,11 +1,12 @@
-// Types
-
-// Context propagation
 export {
+	captureRequestContext,
 	createRequestContext,
+	createRequestContextFromRequest,
 	generateRequestId,
 	getRequestContext,
+	runWithCapturedContext,
 	runWithContext,
+	runWithRequestContext,
 } from "./context";
 // Logger
 export { createLogger, log } from "./logger";

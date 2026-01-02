@@ -22,6 +22,11 @@
 import { context, trace } from "@opentelemetry/api";
 import { after } from "next/server";
 import { getTwilioConfig } from "@/lib/config/server";
+import {
+	captureRequestContext,
+	runWithCapturedContext,
+	runWithRequestContext,
+} from "@/lib/observability";
 import { logWhatsAppEvent, setWhatsAppSpanAttributes } from "./observability";
 import { createPendingLog, logWebhookError } from "./repository";
 import { processWhatsAppMessage } from "./service";
@@ -30,210 +35,225 @@ import { incomingMessageSchema } from "./types";
 
 const tracer = trace.getTracer("whatsapp-webhook");
 
-export async function POST(request: Request) {
-	const rawBody = await request.text();
-	if (!rawBody) {
-		logWhatsAppEvent("warn", {
-			event: "whatsapp.inbound.missing_payload",
-			direction: "inbound",
-			requestUrl: request.url,
-		});
-		return new Response("Missing payload", { status: 400 });
-	}
+export function POST(request: Request) {
+	return runWithRequestContext({ request, service: "whatsapp" }, async () => {
+		const capturedContext = captureRequestContext();
+		const rawBody = await request.text();
+		if (!rawBody) {
+			logWhatsAppEvent("warn", {
+				event: "whatsapp.inbound.missing_payload",
+				direction: "inbound",
+				requestUrl: request.url,
+			});
+			return new Response("Missing payload", { status: 400 });
+		}
 
-	const rawParams = Object.fromEntries(new URLSearchParams(rawBody));
-	const rawMessageSid =
-		typeof rawParams["MessageSid"] === "string"
-			? rawParams["MessageSid"]
-			: undefined;
-	const rawWaId =
-		typeof rawParams["WaId"] === "string" ? rawParams["WaId"] : undefined;
+		const rawParams = Object.fromEntries(new URLSearchParams(rawBody));
+		const rawMessageSid =
+			typeof rawParams["MessageSid"] === "string"
+				? rawParams["MessageSid"]
+				: undefined;
+		const rawWaId =
+			typeof rawParams["WaId"] === "string" ? rawParams["WaId"] : undefined;
 
-	logWhatsAppEvent("info", {
-		event: "whatsapp.inbound.received",
-		direction: "inbound",
-		messageSid: rawMessageSid,
-		waId: rawWaId,
-		requestUrl: request.url,
-		details: {
-			contentLength: rawBody.length,
-		},
-	});
-
-	const parsedPayload = incomingMessageSchema.safeParse(rawParams);
-
-	if (!parsedPayload.success) {
-		logWhatsAppEvent("warn", {
-			event: "whatsapp.inbound.validation_failed",
+		logWhatsAppEvent("info", {
+			event: "whatsapp.inbound.received",
 			direction: "inbound",
 			messageSid: rawMessageSid,
 			waId: rawWaId,
+			requestUrl: request.url,
 			details: {
-				issues: parsedPayload.error.issues,
+				contentLength: rawBody.length,
 			},
 		});
 
-		after(() =>
-			logWebhookError("invalid_payload", undefined, undefined, {
-				issues: parsedPayload.error.format(),
-				requestUrl: request.url,
-			}),
-		);
+		const parsedPayload = incomingMessageSchema.safeParse(rawParams);
 
-		return new Response("Invalid payload", { status: 400 });
-	}
-
-	const payload = parsedPayload.data;
-	const signature = request.headers.get("x-twilio-signature");
-	const requestUrl = request.url;
-
-	let webhookUrl: string;
-	try {
-		const twilioConfig = getTwilioConfig();
-		webhookUrl = requestUrl;
-
-		// If the configured webhook URL differs from the incoming request URL, log it
-		// for visibility while still validating against the actual request URL to
-		// match Twilio's signature calculation.
-		if (twilioConfig.whatsappWebhookUrl !== requestUrl) {
+		if (!parsedPayload.success) {
 			logWhatsAppEvent("warn", {
-				event: "whatsapp.inbound.webhook_url_mismatch",
+				event: "whatsapp.inbound.validation_failed",
+				direction: "inbound",
+				messageSid: rawMessageSid,
+				waId: rawWaId,
+				details: {
+					issues: parsedPayload.error.issues,
+				},
+			});
+
+			after(() =>
+				runWithCapturedContext(capturedContext, () =>
+					logWebhookError("invalid_payload", undefined, undefined, {
+						issues: parsedPayload.error.format(),
+						requestUrl: request.url,
+					}),
+				),
+			);
+
+			return new Response("Invalid payload", { status: 400 });
+		}
+
+		const payload = parsedPayload.data;
+		const signature = request.headers.get("x-twilio-signature");
+		const requestUrl = request.url;
+
+		let webhookUrl: string;
+		try {
+			const twilioConfig = getTwilioConfig();
+			webhookUrl = requestUrl;
+
+			// If the configured webhook URL differs from the incoming request URL, log it
+			// for visibility while still validating against the actual request URL to
+			// match Twilio's signature calculation.
+			if (twilioConfig.whatsappWebhookUrl !== requestUrl) {
+				logWhatsAppEvent("warn", {
+					event: "whatsapp.inbound.webhook_url_mismatch",
+					direction: "inbound",
+					messageSid: payload.MessageSid,
+					waId: payload.WaId,
+					details: {
+						configuredUrl: twilioConfig.whatsappWebhookUrl,
+						requestUrl,
+					},
+				});
+			}
+		} catch (configError) {
+			const errorMessage =
+				configError instanceof Error
+					? configError.message
+					: String(configError);
+			logWhatsAppEvent("error", {
+				event: "whatsapp.inbound.config_error",
 				direction: "inbound",
 				messageSid: payload.MessageSid,
 				waId: payload.WaId,
-				details: {
-					configuredUrl: twilioConfig.whatsappWebhookUrl,
-					requestUrl,
-				},
+				error: errorMessage,
+			});
+			return new Response("Server misconfigured", { status: 500 });
+		}
+
+		if (!signature) {
+			logWhatsAppEvent("warn", {
+				event: "whatsapp.inbound.signature_missing",
+				direction: "inbound",
+				messageSid: payload.MessageSid,
+				waId: payload.WaId,
+				requestUrl: request.url,
+			});
+			after(() =>
+				runWithCapturedContext(capturedContext, () =>
+					logWebhookError("missing_signature", undefined, undefined, payload),
+				),
+			);
+			return new Response("Forbidden", { status: 403 });
+		}
+
+		const isValidRequest = validateTwilioRequest(
+			signature,
+			webhookUrl,
+			rawParams,
+		);
+
+		if (!isValidRequest) {
+			logWhatsAppEvent("warn", {
+				event: "whatsapp.inbound.signature_invalid",
+				direction: "inbound",
+				messageSid: payload.MessageSid,
+				waId: payload.WaId,
+				requestUrl: request.url,
+				details: { webhookUrl },
+			});
+			after(() =>
+				runWithCapturedContext(capturedContext, () =>
+					logWebhookError("signature_failed", payload.MessageSid, undefined, {
+						...payload,
+						fromNumber: payload.From,
+						toNumber: payload.To,
+					}),
+				),
+			);
+			return new Response("Forbidden", { status: 403 });
+		}
+
+		logWhatsAppEvent("info", {
+			event: "whatsapp.inbound.signature_validated",
+			direction: "inbound",
+			messageSid: payload.MessageSid,
+			waId: payload.WaId,
+		});
+
+		const pendingLog = await createPendingLog(webhookUrl, payload);
+
+		if (pendingLog.outcome === "duplicate") {
+			logWhatsAppEvent("info", {
+				event: "whatsapp.inbound.duplicate_skipped",
+				direction: "inbound",
+				messageSid: payload.MessageSid,
+				waId: payload.WaId,
+			});
+
+			return new Response("<Response></Response>", {
+				status: 200,
+				headers: { "Content-Type": "text/xml" },
 			});
 		}
-	} catch (configError) {
-		const errorMessage =
-			configError instanceof Error ? configError.message : String(configError);
-		logWhatsAppEvent("error", {
-			event: "whatsapp.inbound.config_error",
-			direction: "inbound",
-			messageSid: payload.MessageSid,
-			waId: payload.WaId,
-			error: errorMessage,
-		});
-		return new Response("Server misconfigured", { status: 500 });
-	}
 
-	if (!signature) {
-		logWhatsAppEvent("warn", {
-			event: "whatsapp.inbound.signature_missing",
-			direction: "inbound",
-			messageSid: payload.MessageSid,
-			waId: payload.WaId,
-			requestUrl: request.url,
-		});
-		after(() =>
-			logWebhookError("missing_signature", undefined, undefined, payload),
-		);
-		return new Response("Forbidden", { status: 403 });
-	}
+		if (pendingLog.outcome === "error") {
+			logWhatsAppEvent("error", {
+				event: "whatsapp.inbound.pending_log_failed",
+				direction: "inbound",
+				messageSid: payload.MessageSid,
+				waId: payload.WaId,
+				requestUrl: request.url,
+			});
+			after(() =>
+				runWithCapturedContext(capturedContext, () =>
+					logWebhookError(
+						"pending_log_failed",
+						payload.MessageSid,
+						"createPendingLog returned outcome=error",
+						{ requestUrl: request.url, webhookUrl },
+					),
+				),
+			);
+			return new Response("Server misconfigured", { status: 500 });
+		}
 
-	const isValidRequest = validateTwilioRequest(
-		signature,
-		webhookUrl,
-		rawParams,
-	);
-
-	if (!isValidRequest) {
-		logWhatsAppEvent("warn", {
-			event: "whatsapp.inbound.signature_invalid",
-			direction: "inbound",
-			messageSid: payload.MessageSid,
-			waId: payload.WaId,
-			requestUrl: request.url,
-			details: { webhookUrl },
-		});
-		after(() =>
-			logWebhookError("signature_failed", payload.MessageSid, undefined, {
-				...payload,
-				fromNumber: payload.From,
-				toNumber: payload.To,
-			}),
-		);
-		return new Response("Forbidden", { status: 403 });
-	}
-
-	logWhatsAppEvent("info", {
-		event: "whatsapp.inbound.signature_validated",
-		direction: "inbound",
-		messageSid: payload.MessageSid,
-		waId: payload.WaId,
-	});
-
-	const pendingLog = await createPendingLog(webhookUrl, payload);
-
-	if (pendingLog.outcome === "duplicate") {
 		logWhatsAppEvent("info", {
-			event: "whatsapp.inbound.duplicate_skipped",
-			direction: "inbound",
+			event: "whatsapp.processing.queued",
+			direction: "internal",
 			messageSid: payload.MessageSid,
 			waId: payload.WaId,
 		});
+
+		tracer.startActiveSpan("whatsapp.webhook.pre_after", (span) => {
+			setWhatsAppSpanAttributes(span, {
+				event: "whatsapp.webhook.pre_after",
+				direction: "internal",
+				messageSid: payload.MessageSid,
+				waId: payload.WaId,
+				requestUrl: webhookUrl,
+			});
+			span.end();
+		});
+
+		// Capture the current trace context before after() runs
+		// This ensures spans created in processWhatsAppMessage are linked to the original request trace
+		const traceContext = context.active();
+
+		after(() =>
+			runWithCapturedContext(capturedContext, () =>
+				context.with(traceContext, () =>
+					processWhatsAppMessage({
+						payload,
+						requestUrl: webhookUrl,
+					}),
+				),
+			),
+		);
 
 		return new Response("<Response></Response>", {
 			status: 200,
 			headers: { "Content-Type": "text/xml" },
 		});
-	}
-
-	if (pendingLog.outcome === "error") {
-		logWhatsAppEvent("error", {
-			event: "whatsapp.inbound.pending_log_failed",
-			direction: "inbound",
-			messageSid: payload.MessageSid,
-			waId: payload.WaId,
-			requestUrl: request.url,
-		});
-		after(() =>
-			logWebhookError(
-				"pending_log_failed",
-				payload.MessageSid,
-				"createPendingLog returned outcome=error",
-				{ requestUrl: request.url, webhookUrl },
-			),
-		);
-		return new Response("Server misconfigured", { status: 500 });
-	}
-
-	logWhatsAppEvent("info", {
-		event: "whatsapp.processing.queued",
-		direction: "internal",
-		messageSid: payload.MessageSid,
-		waId: payload.WaId,
-	});
-
-	tracer.startActiveSpan("whatsapp.webhook.pre_after", (span) => {
-		setWhatsAppSpanAttributes(span, {
-			event: "whatsapp.webhook.pre_after",
-			direction: "internal",
-			messageSid: payload.MessageSid,
-			waId: payload.WaId,
-			requestUrl: webhookUrl,
-		});
-		span.end();
-	});
-
-	// Capture the current trace context before after() runs
-	// This ensures spans created in processWhatsAppMessage are linked to the original request trace
-	const traceContext = context.active();
-
-	after(() =>
-		context.with(traceContext, () =>
-			processWhatsAppMessage({
-				payload,
-				requestUrl: webhookUrl,
-			}),
-		),
-	);
-
-	return new Response("<Response></Response>", {
-		status: 200,
-		headers: { "Content-Type": "text/xml" },
 	});
 }
