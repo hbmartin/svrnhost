@@ -2,6 +2,7 @@ import type { Span } from "@opentelemetry/api";
 import type { Scope as SentryScope } from "@sentry/nextjs";
 import * as Sentry from "@sentry/nextjs";
 import { vercelEnv } from "@/lib/config/server";
+import { getRequestContext } from "@/lib/observability";
 
 export type WhatsAppLogLevel = "info" | "warn" | "error";
 
@@ -23,6 +24,7 @@ export interface WhatsAppLogFields extends WhatsAppCorrelationIds {
 	error?: string | undefined;
 	exception?: unknown;
 	details?: Record<string, unknown> | undefined;
+	requestId?: string | undefined;
 }
 
 const tagMappings: Partial<Record<keyof WhatsAppLogFields, string>> = {
@@ -31,6 +33,7 @@ const tagMappings: Partial<Record<keyof WhatsAppLogFields, string>> = {
 	messageSid: "whatsapp.message_sid",
 	waId: "whatsapp.wa_id",
 	chatId: "whatsapp.chat_id",
+	requestId: "request_id",
 };
 
 function setSentryScopeTags(
@@ -97,12 +100,19 @@ export function logWhatsAppEvent(
 				? console.warn
 				: console.log;
 
+	// Enrich with requestId from context if not already provided
+	const ctx = getRequestContext();
+	const enrichedFields: WhatsAppLogFields = {
+		...fields,
+		requestId: fields.requestId ?? ctx?.requestId ?? fields.messageSid,
+	};
+
 	try {
 		logger("[whatsapp]", {
 			service: "whatsapp",
 			nodeEnv: process.env.NODE_ENV,
 			vercelEnv,
-			...fields,
+			...enrichedFields,
 		});
 	} catch (loggingError) {
 		// Logging must never break the handler, but report failures for debugging
@@ -118,9 +128,9 @@ export function logWhatsAppEvent(
 	if (level === "error") {
 		try {
 			Sentry.withScope((scope) => {
-				setSentryScopeTags(scope, fields);
-				setSentryScopeExtras(scope, fields);
-				captureSentryError(fields);
+				setSentryScopeTags(scope, enrichedFields);
+				setSentryScopeExtras(scope, enrichedFields);
+				captureSentryError(enrichedFields);
 			});
 		} catch (sentryError) {
 			console.error("[whatsapp] sentry capture failed", {
@@ -128,7 +138,7 @@ export function logWhatsAppEvent(
 					sentryError instanceof Error
 						? sentryError.message
 						: String(sentryError),
-				originalEvent: fields.event,
+				originalEvent: enrichedFields.event,
 			});
 		}
 	}
@@ -138,6 +148,13 @@ export function setWhatsAppSpanAttributes(
 	span: Span,
 	fields: Partial<WhatsAppLogFields>,
 ): void {
+	// Get requestId from context if not provided
+	const ctx = getRequestContext();
+	const requestId = fields.requestId ?? ctx?.requestId ?? fields.messageSid;
+
+	if (requestId) {
+		span.setAttribute("request_id", requestId);
+	}
 	if (fields.event) {
 		span.setAttribute("whatsapp.event", fields.event);
 	}

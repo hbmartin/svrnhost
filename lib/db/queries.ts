@@ -187,7 +187,10 @@ export async function getChatsByUserId({
 			chats: hasMore ? filteredChats.slice(0, limit) : filteredChats,
 			hasMore,
 		};
-	} catch (_error) {
+	} catch (error) {
+		if (error instanceof ChatSDKError) {
+			throw error;
+		}
 		throw new ChatSDKError(
 			"bad_request:database",
 			"Failed to get chats by user id",
