@@ -161,7 +161,7 @@ export async function getChatsByUserId({
 				);
 			}
 
-			filteredChats = await query(gt(chat.createdAt, selectedChat.createdAt));
+			filteredChats = await query(lt(chat.createdAt, selectedChat.createdAt));
 		} else if (endingBefore) {
 			const [selectedChat] = await db
 				.select()
@@ -176,7 +176,7 @@ export async function getChatsByUserId({
 				);
 			}
 
-			filteredChats = await query(lt(chat.createdAt, selectedChat.createdAt));
+			filteredChats = await query(gt(chat.createdAt, selectedChat.createdAt));
 		} else {
 			filteredChats = await query();
 		}
@@ -357,14 +357,13 @@ export async function deleteMessagesByChatIdAfterTimestamp({
 }: {
 	chatId: string;
 	timestamp: Date;
-}) {
+}): Promise<DBMessage[]> {
 	try {
 		// Related vote records are deleted via onDelete: "cascade" on messageId
 		return await db
 			.delete(message)
-			.where(
-				and(eq(message.chatId, chatId), gte(message.createdAt, timestamp)),
-			);
+			.where(and(eq(message.chatId, chatId), gte(message.createdAt, timestamp)))
+			.returning();
 	} catch (_error) {
 		throw new ChatSDKError(
 			"bad_request:database",
@@ -386,9 +385,11 @@ export async function updateChatLastContextById({
 			.update(chat)
 			.set({ lastContext: context })
 			.where(eq(chat.id, chatId));
-	} catch (error) {
-		console.warn("Failed to update lastContext for chat", chatId, error);
-		return;
+	} catch (_error) {
+		throw new ChatSDKError(
+			"bad_request:database",
+			"Failed to update chat last context by id",
+		);
 	}
 }
 
