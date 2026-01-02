@@ -481,8 +481,8 @@ describe("lib/observability/context", () => {
 			expect(parts).toHaveLength(3);
 			expect(parts[0]).toBe("req");
 			// Both parts should be valid base36 strings
-			expect(() => Number.parseInt(parts[1], 36)).not.toThrow();
-			expect(() => Number.parseInt(parts[2], 36)).not.toThrow();
+			expect(Number.isNaN(Number.parseInt(parts[1], 36))).toBe(false);
+			expect(Number.isNaN(Number.parseInt(parts[2], 36))).toBe(false);
 		});
 
 		it("generates IDs with reasonable timestamp values", () => {
