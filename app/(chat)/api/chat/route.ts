@@ -7,15 +7,11 @@ import {
 	stepCountIs,
 	streamText,
 } from "ai";
-import { unstable_cache as cache } from "next/cache";
 import { after } from "next/server";
 import {
 	createResumableStreamContext,
 	type ResumableStreamContext,
 } from "resumable-stream";
-import type { ModelCatalog, UsageLike } from "tokenlens/core";
-import { fetchModels } from "tokenlens/fetch";
-import { getUsage } from "tokenlens/helpers";
 import { auth, type UserType } from "@/app/(auth)/auth";
 import { entitlementsByUserType } from "@/lib/ai/entitlements";
 import type { ChatModel } from "@/lib/ai/models";
@@ -32,7 +28,6 @@ import {
 	getMessagesByChatId,
 	saveChat,
 	saveMessages,
-	updateChatLastContextById,
 } from "@/lib/db/queries";
 import type { DBMessage } from "@/lib/db/schema";
 import { ChatSDKError } from "@/lib/errors";
@@ -46,7 +41,6 @@ import {
 	runWithRequestContext,
 } from "@/lib/observability";
 import type { ChatMessage } from "@/lib/types";
-import type { AppUsage } from "@/lib/usage";
 import { convertToUIMessages, generateUUID } from "@/lib/utils";
 import { generateTitleFromUserMessage } from "../../actions";
 import { type PostRequestBody, postRequestBodySchema } from "./schema";
@@ -56,51 +50,6 @@ export const maxDuration = 60;
 const chatLogger = createLogger("chat");
 
 let globalStreamContext: ResumableStreamContext | null = null;
-
-const getTokenlensCatalog = cache(
-	async (): Promise<ModelCatalog | undefined> => {
-		try {
-			return await fetchModels();
-		} catch (err) {
-			console.warn(
-				"TokenLens: catalog fetch failed, using default catalog",
-				err,
-			);
-			return; // tokenlens helpers will fall back to defaultCatalog
-		}
-	},
-	["tokenlens-catalog"],
-	{ revalidate: 24 * 60 * 60 }, // 24 hours
-);
-
-async function computeUsageWithTokenlens(
-	selectedChatModel: ChatModel["id"],
-	usage: UsageLike | undefined,
-	chatId: string,
-): Promise<AppUsage | undefined> {
-	if (!usage) {
-		return undefined;
-	}
-
-	try {
-		const providers = await getTokenlensCatalog();
-		const modelId = myProvider.languageModel(selectedChatModel).modelId;
-
-		if (!(modelId && providers)) {
-			return usage as AppUsage;
-		}
-
-		const summary = getUsage({ modelId, usage, providers });
-		return { ...usage, ...summary, modelId } as AppUsage;
-	} catch (err) {
-		chatLogger.warn({
-			event: "chat.tokenlens.failed",
-			chatId,
-			error: err instanceof Error ? err.message : String(err),
-		});
-		return usage as AppUsage;
-	}
-}
 
 export function getStreamContext() {
 	if (!globalStreamContext) {
@@ -287,8 +236,6 @@ export function POST(request: Request) {
 
 			aiStartTime = Date.now();
 
-			let finalMergedUsage: AppUsage | undefined;
-
 			const stream = createUIMessageStream({
 				execute: async ({ writer: dataStream }) => {
 					const aiConfig = getAiConfig();
@@ -319,7 +266,7 @@ export function POST(request: Request) {
 							isEnabled: isProductionEnvironment,
 							functionId: "stream-text",
 						},
-						onFinish: async ({ usage }) => {
+						onFinish: ({ usage }) => {
 							// Record AI latency
 							if (aiStartTime) {
 								const latencyMs = Date.now() - aiStartTime;
@@ -336,16 +283,6 @@ export function POST(request: Request) {
 									type: "total",
 								});
 							}
-
-							finalMergedUsage = await computeUsageWithTokenlens(
-								selectedChatModel,
-								usage as UsageLike,
-								id,
-							);
-							dataStream.write({
-								type: "data-usage",
-								data: finalMergedUsage,
-							});
 						},
 					});
 
@@ -385,21 +322,6 @@ export function POST(request: Request) {
 							streamId,
 						},
 					});
-
-					if (finalMergedUsage) {
-						try {
-							await updateChatLastContextById({
-								chatId: id,
-								context: finalMergedUsage,
-							});
-						} catch (err) {
-							chatLogger.warn({
-								event: "chat.usage.persist_failed",
-								chatId: id,
-								error: err instanceof Error ? err.message : String(err),
-							});
-						}
-					}
 				},
 				onError: (streamError) => {
 					// Record failed AI call

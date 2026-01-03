@@ -19,7 +19,7 @@
 ### Request context (AsyncLocalStorage)
 
 - Use the module-scoped AsyncLocalStorage helpers in `lib/observability/context.ts` to carry per-request data in Vercel Fluid Compute.
-- Always wrap Node route handlers with `runWithRequestContext({ request, service })` at the top of the handler.
+- Always wrap route handlers with `runWithRequestContext({ request, service })` at the top of the handler (Node runtime only; do not use in Edge runtime or middleware—see [Runtime caveats](#runtime-caveats)).
 - Request IDs are read from `x-request-id` or `x-vercel-id`; if missing, a `req_<timestamp>_<random>` ID is generated.
 - Never store per-request data in global mutable state; rely on context accessors like `getRequestContext()`.
 

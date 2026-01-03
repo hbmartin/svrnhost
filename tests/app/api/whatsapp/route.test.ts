@@ -231,7 +231,7 @@ describe("WhatsApp webhook route", () => {
 		expect(await response.text()).toBe("<Response></Response>");
 	});
 
-	it("returns 500 when createPendingLog returns error", async () => {
+	it("returns 200 TwiML when createPendingLog returns error to prevent retry storms", async () => {
 		createPendingLogMock.mockResolvedValue({ outcome: "error" });
 
 		const { POST } = await import("@/app/api/whatsapp/route");
@@ -248,8 +248,9 @@ describe("WhatsApp webhook route", () => {
 
 		const response = await POST(request);
 
-		expect(response.status).toBe(500);
-		expect(await response.text()).toBe("Server misconfigured");
+		expect(response.status).toBe(200);
+		expect(response.headers.get("Content-Type")).toBe("text/xml");
+		expect(await response.text()).toBe("<Response></Response>");
 	});
 
 	it("returns 200 and queues processing for new message", async () => {
