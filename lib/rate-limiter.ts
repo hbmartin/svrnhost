@@ -5,12 +5,10 @@
  * and each operation consumes one token. This allows for controlled bursting
  * while maintaining a long-term average rate.
  *
- * Note: This is an in-memory implementation. In a serverless environment,
- * state is not shared across instances. This provides best-effort rate limiting
- * within a single instance, which is acceptable for WhatsApp webhook processing
- * where messages typically arrive on the same instance in quick succession.
+ * @deprecated Use `getWhatsAppRateLimiter()` from `@/lib/infrastructure/redis`
+ * for distributed rate limiting. This in-memory implementation only works
+ * for single-instance deployments.
  */
-
 import { WHATSAPP_LIMITS } from "@/lib/config/limits";
 
 interface BucketState {

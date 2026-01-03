@@ -24,6 +24,13 @@ const envSchema = z
 		ANTHROPIC_API_KEY: z.string().min(1).optional(),
 		AI_GATEWAY_API_KEY: z.string().min(1).optional(),
 		VERCEL_AI_API_KEY: z.string().min(1).optional(),
+
+		// Upstash Redis
+		UPSTASH_REDIS_REST_URL: z.string().url().optional(),
+		UPSTASH_REDIS_REST_TOKEN: z.string().min(1).optional(),
+
+		// Vercel Edge Config (auto-provided by Vercel when linked)
+		EDGE_CONFIG: z.string().optional(),
 	})
 	.passthrough();
 
@@ -183,6 +190,42 @@ export function getPostgresUrl(): string {
 
 	cachedPostgresUrl = postgresUrl;
 	return cachedPostgresUrl;
+}
+
+export interface RedisConfig {
+	restUrl: string;
+	restToken: string;
+	isConfigured: boolean;
+}
+
+let cachedRedisConfig: RedisConfig | null = null;
+
+export function getRedisConfig(): RedisConfig {
+	if (cachedRedisConfig) {
+		return cachedRedisConfig;
+	}
+
+	const restUrl = env.UPSTASH_REDIS_REST_URL ?? null;
+	const restToken = env.UPSTASH_REDIS_REST_TOKEN ?? null;
+	const isConfigured = Boolean(restUrl && restToken);
+
+	if (!(isConfigured || isTestLike)) {
+		console.warn(
+			"[config] Redis not configured - falling back to in-memory implementations",
+		);
+	}
+
+	cachedRedisConfig = {
+		restUrl: restUrl ?? "",
+		restToken: restToken ?? "",
+		isConfigured,
+	};
+
+	return cachedRedisConfig;
+}
+
+export function getEdgeConfigConnectionString(): string | undefined {
+	return env.EDGE_CONFIG;
 }
 
 export const limits = {

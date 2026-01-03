@@ -20,6 +20,7 @@ vi.mock("next/headers", () => ({
 
 vi.mock("ai", () => ({
 	generateText: mocks.generateText,
+	generateId: vi.fn(() => "mock-id"),
 }));
 
 vi.mock("@/lib/ai/providers", () => ({

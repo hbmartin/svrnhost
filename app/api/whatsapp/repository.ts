@@ -12,6 +12,7 @@ import {
 	upsertWebhookLogByMessageSid,
 } from "@/lib/db/queries";
 import type { DBMessage, User } from "@/lib/db/schema";
+import { CacheKeys, getUserCache } from "@/lib/infrastructure/redis";
 import type { Attachment } from "@/lib/types";
 import { generateUUID } from "@/lib/utils";
 import type { IncomingMessage } from "./types";
@@ -41,8 +42,14 @@ export interface OutboundMessageRecord {
 	message: DBMessage;
 }
 
+/**
+ * Find user by phone number with transparent caching.
+ * Implements cache-aside: check cache -> DB lookup -> cache update
+ */
 export async function findUserByPhone(phone: string): Promise<User | null> {
-	return getUserByPhone(phone);
+	const cache = getUserCache();
+	const cacheKey = CacheKeys.userByPhone(phone);
+	return cache.getOrSet(cacheKey, () => getUserByPhone(phone));
 }
 
 export async function resolveOrCreateChat(
@@ -153,6 +160,7 @@ export async function markMessageFailed(
 	});
 }
 
+// TODO: move these log* function to another file and use a more descriptive verb than `log`
 export async function logWebhookOutbound(
 	requestUrl: string,
 	fromNumber: string,

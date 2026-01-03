@@ -1,10 +1,12 @@
+import { UpstashRedisAdapter } from "@auth/upstash-redis-adapter";
 import { compare } from "bcrypt-ts";
-import NextAuth, { type DefaultSession } from "next-auth";
+import NextAuth, { type DefaultSession, type NextAuthConfig } from "next-auth";
 import type { DefaultJWT } from "next-auth/jwt";
 import Credentials from "next-auth/providers/credentials";
 import { z } from "zod";
 import { DUMMY_PASSWORD } from "@/lib/constants";
 import { getUser } from "@/lib/db/queries";
+import { getRedisClient } from "@/lib/infrastructure/redis";
 import { authConfig } from "./auth.config";
 
 export const LoginSchema = z.object({
@@ -36,13 +38,14 @@ declare module "next-auth/jwt" {
 	}
 }
 
-export const {
-	handlers: { GET, POST },
-	auth,
-	signIn,
-	signOut,
-} = NextAuth({
+// Get Redis client for session adapter (optional - falls back to JWT-only if not configured)
+const redis = getRedisClient();
+
+// Build NextAuth config with optional Redis adapter
+const nextAuthConfig: NextAuthConfig = {
 	...authConfig,
+	// Explicitly use JWT strategy (required for Credentials provider)
+	session: { strategy: "jwt" },
 	providers: [
 		Credentials({
 			credentials: {
@@ -99,4 +102,17 @@ export const {
 			return session;
 		},
 	},
-});
+};
+
+// Add Redis adapter if configured
+if (redis) {
+	// @ts-expect-error - adapter is optional but TypeScript is strict
+	nextAuthConfig.adapter = UpstashRedisAdapter(redis);
+}
+
+export const {
+	handlers: { GET, POST },
+	auth,
+	signIn,
+	signOut,
+} = NextAuth(nextAuthConfig);
