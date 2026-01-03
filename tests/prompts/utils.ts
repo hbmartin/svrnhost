@@ -36,8 +36,12 @@ export function compareMessages(
 		}
 
 		if (item1.type === "file" && item2.type === "file") {
-			// if (item1.image.toString() !== item2.image.toString()) return false;
-			// if (item1.mimeType !== item2.mimeType) return false;
+			if (item1.mediaType !== item2.mediaType) {
+				return false;
+			}
+			if (item1.data !== item2.data) {
+				return false;
+			}
 		} else if (item1.type === "text" && item2.type === "text") {
 			if (item1.text !== item2.text) {
 				return false;
