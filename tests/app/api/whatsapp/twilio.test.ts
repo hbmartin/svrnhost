@@ -29,7 +29,11 @@ vi.mock("twilio", async (importOriginal) => {
 		conversations: { v1: { conversations: vi.fn() } },
 		request: vi.fn(),
 	})) as unknown as typeof actual.default;
-	(mockTwilioConstructor as unknown as { validateRequest: typeof mockValidateRequest }).validateRequest = mockValidateRequest;
+	(
+		mockTwilioConstructor as unknown as {
+			validateRequest: typeof mockValidateRequest;
+		}
+	).validateRequest = mockValidateRequest;
 	return {
 		...actual,
 		default: mockTwilioConstructor,
@@ -223,7 +227,7 @@ describe("getTwilioErrorMetadata", () => {
 	it("extracts metadata from RestException", () => {
 		const mockResponse = {
 			statusCode: 400,
-			body: JSON.stringify({ code: 21211, message: "Invalid phone number" }),
+			body: JSON.stringify({ code: 21_211, message: "Invalid phone number" }),
 		};
 		const restException = new RestException(mockResponse as never);
 
@@ -231,14 +235,14 @@ describe("getTwilioErrorMetadata", () => {
 
 		expect(metadata).toBeDefined();
 		expect(metadata?.status).toBe(400);
-		expect(metadata?.code).toBe(21211);
+		expect(metadata?.code).toBe(21_211);
 	});
 
 	it("extracts moreInfo from RestException when available", () => {
 		const mockResponse = {
 			statusCode: 400,
 			body: JSON.stringify({
-				code: 21211,
+				code: 21_211,
 				message: "Invalid phone number",
 				more_info: "https://www.twilio.com/docs/errors/21211",
 			}),
@@ -255,7 +259,7 @@ describe("getTwilioErrorMetadata", () => {
 		const mockResponse = {
 			statusCode: 400,
 			body: JSON.stringify({
-				code: 21211,
+				code: 21_211,
 				message: "Invalid phone number",
 				details: { field: "To", issue: "invalid format" },
 			}),
@@ -288,7 +292,7 @@ describe("getTwilioErrorMetadata", () => {
 		const mockResponse = {
 			statusCode: 400,
 			body: JSON.stringify({
-				code: 21211,
+				code: 21_211,
 				message: "Error",
 				details: "string details",
 			}),
@@ -761,9 +765,9 @@ describe("sendTypingIndicator", () => {
 		const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 		const payload = createMockIncomingMessage();
 
-		const mockParticipantsList = vi.fn().mockResolvedValue([
-			{ identity: "other-agent", sid: "PA123" },
-		]);
+		const mockParticipantsList = vi
+			.fn()
+			.mockResolvedValue([{ identity: "other-agent", sid: "PA123" }]);
 		const mockConversations = vi.fn().mockReturnValue({
 			participants: { list: mockParticipantsList },
 		});
@@ -790,9 +794,9 @@ describe("sendTypingIndicator", () => {
 		const payload = createMockIncomingMessage();
 
 		const mockRequest = vi.fn().mockResolvedValue({});
-		const mockParticipantsList = vi.fn().mockResolvedValue([
-			{ identity: "agent-identity", sid: "PA123" },
-		]);
+		const mockParticipantsList = vi
+			.fn()
+			.mockResolvedValue([{ identity: "agent-identity", sid: "PA123" }]);
 		const mockConversations = vi.fn().mockReturnValue({
 			participants: { list: mockParticipantsList },
 		});
@@ -848,9 +852,9 @@ describe("sendTypingIndicator", () => {
 		};
 
 		const mockRequest = vi.fn().mockResolvedValue({});
-		const mockParticipantsList = vi.fn().mockResolvedValue([
-			{ identity: "agent-identity", sid: "PA123" },
-		]);
+		const mockParticipantsList = vi
+			.fn()
+			.mockResolvedValue([{ identity: "agent-identity", sid: "PA123" }]);
 		const mockConversations = vi.fn().mockReturnValue({
 			participants: { list: mockParticipantsList },
 		});

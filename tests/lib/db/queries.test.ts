@@ -1,11 +1,19 @@
 import { PGlite } from "@electric-sql/pglite";
-import { drizzle } from "drizzle-orm/pglite";
 import type { PgliteDatabase } from "drizzle-orm/pglite";
+import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import { reset, seed } from "drizzle-seed";
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import * as schema from "@/lib/db/schema";
+import {
+	afterAll,
+	beforeAll,
+	beforeEach,
+	describe,
+	expect,
+	it,
+	vi,
+} from "vitest";
 import type { DBMessage, Suggestion } from "@/lib/db/schema";
+import * as schema from "@/lib/db/schema";
 
 // Create PGlite instance and drizzle database
 let client: PGlite;
@@ -344,7 +352,7 @@ describe("Message queries", () => {
 					role: "user",
 					parts: [{ type: "text", text: "Old message" }],
 					attachments: [],
-					createdAt: new Date(timestamp.getTime() - 10000),
+					createdAt: new Date(timestamp.getTime() - 10_000),
 					metadata: null,
 				} as DBMessage,
 				{
@@ -744,7 +752,11 @@ describe("Chat context queries", () => {
 	});
 
 	it("should handle update for non-existent chat gracefully", async () => {
-		const context = { promptTokens: 100, completionTokens: 50, totalTokens: 150 };
+		const context = {
+			promptTokens: 100,
+			completionTokens: 50,
+			totalTokens: 150,
+		};
 
 		// Should not throw - returns update result with 0 affected rows
 		const result = await updateChatLastContextById({
@@ -1086,10 +1098,14 @@ describe("Failed outbound messages queries", () => {
 			],
 		});
 
-		const failedMessages = await getFailedOutboundMessages({ source: "whatsapp" });
+		const failedMessages = await getFailedOutboundMessages({
+			source: "whatsapp",
+		});
 
 		expect(failedMessages).toHaveLength(1);
-		expect((failedMessages[0].metadata as Record<string, unknown>)?.sendStatus).toBe("failed");
+		expect(
+			(failedMessages[0].metadata as Record<string, unknown>)?.sendStatus,
+		).toBe("failed");
 	});
 
 	it("should return empty array when no failed messages", async () => {
@@ -1111,7 +1127,9 @@ describe("Failed outbound messages queries", () => {
 			],
 		});
 
-		const failedMessages = await getFailedOutboundMessages({ source: "whatsapp" });
+		const failedMessages = await getFailedOutboundMessages({
+			source: "whatsapp",
+		});
 
 		expect(failedMessages).toHaveLength(0);
 	});
@@ -1148,7 +1166,9 @@ describe("Failed outbound messages queries", () => {
 			],
 		});
 
-		const whatsappFailed = await getFailedOutboundMessages({ source: "whatsapp" });
+		const whatsappFailed = await getFailedOutboundMessages({
+			source: "whatsapp",
+		});
 		const smsFailed = await getFailedOutboundMessages({ source: "sms" });
 
 		expect(whatsappFailed).toHaveLength(1);
@@ -1187,7 +1207,7 @@ describe("Failed outbound messages queries", () => {
 describe("Seeded data tests", () => {
 	it("should work with drizzle-seed for bulk data", async () => {
 		// Use drizzle-seed to create test data
-		await seed(db, { user: schema.user }, { count: 5, seed: 12345 });
+		await seed(db, { user: schema.user }, { count: 5, seed: 12_345 });
 
 		const users = await db.select().from(schema.user);
 
@@ -1195,13 +1215,13 @@ describe("Seeded data tests", () => {
 	});
 
 	it("should create deterministic data with same seed", async () => {
-		await seed(db, { user: schema.user }, { count: 3, seed: 99999 });
+		await seed(db, { user: schema.user }, { count: 3, seed: 99_999 });
 
 		const users1 = await db.select().from(schema.user);
 
 		await reset(db, schema);
 
-		await seed(db, { user: schema.user }, { count: 3, seed: 99999 });
+		await seed(db, { user: schema.user }, { count: 3, seed: 99_999 });
 
 		const users2 = await db.select().from(schema.user);
 

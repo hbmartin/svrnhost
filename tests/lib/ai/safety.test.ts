@@ -140,7 +140,7 @@ describe("getSafeErrorMessage", () => {
 	it("redacts before truncating", () => {
 		const prefix = "User ";
 		const phone = "+14155551234";
-		const suffix = " " + "x".repeat(600);
+		const suffix = ` ${"x".repeat(600)}`;
 		const error = new Error(prefix + phone + suffix);
 		const result = getSafeErrorMessage(error);
 		expect(result.startsWith("User [PHONE_REDACTED]")).toBe(true);

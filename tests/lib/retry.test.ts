@@ -238,7 +238,7 @@ describe("withRetry", () => {
 			const resultPromise = withRetry(fn, {
 				maxAttempts: 4,
 				baseDelayMs: 1000,
-				maxDelayMs: 30000,
+				maxDelayMs: 30_000,
 			});
 			resultPromise.catch(() => {}); // Prevent unhandled rejection warning
 
@@ -266,8 +266,8 @@ describe("withRetry", () => {
 
 			const resultPromise = withRetry(fn, {
 				maxAttempts: 5,
-				baseDelayMs: 10000,
-				maxDelayMs: 15000,
+				baseDelayMs: 10_000,
+				maxDelayMs: 15_000,
 			});
 			resultPromise.catch(() => {}); // Prevent unhandled rejection warning
 
@@ -279,7 +279,7 @@ describe("withRetry", () => {
 			// All delays should be capped at maxDelayMs + jitter (< 15100)
 			const delays = setTimeoutSpy.mock.calls.map((call) => call[1] as number);
 			for (const delay of delays) {
-				expect(delay).toBeLessThan(15200);
+				expect(delay).toBeLessThan(15_200);
 			}
 		});
 	});
