@@ -2,13 +2,7 @@
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
   "extends": ["ultracite/core", "ultracite/react", "ultracite/next"],
   "files": {
-    "includes": [
-      "!.next",
-      "!!coverage",
-      "!lib/db/**/*.json",
-      "!.vscode/*",
-      "!!tests"
-    ]
+    "includes": ["!.next", "!coverage", "!lib/db/**/*.json", "!.vscode/*"]
   },
   "linter": {
     "rules": {
@@ -40,5 +34,32 @@
       "indentStyle": "tab",
       "trailingCommas": "all"
     }
-  }
+  },
+  "overrides": [
+    {
+      // Environment and type definition files
+      "includes": ["tests/**/*.ts", "tests/**/*.tsx"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noEmptyBlock": "off",
+            "noEmptyBlockStatements": "off",
+            "noEvolvingTypes": "off",
+            "useAwait": "off"
+          },
+          "complexity": {
+            "noExcessiveCognitiveComplexity": "off",
+            "noForEach": "off"
+          },
+          "performance": {
+            "noDelete": "off",
+            "useTopLevelRegex": "off"
+          },
+          "style": {
+            "useThrowOnlyError": "off"
+          }
+        }
+      }
+    }
+  ]
 }

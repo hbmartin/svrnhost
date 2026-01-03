@@ -11,8 +11,10 @@ export function compareMessages(
 	}
 
 	if (
-		!Array.isArray(firstMessage.content) ||
-		!Array.isArray(secondMessage.content)
+		!(
+			Array.isArray(firstMessage.content) &&
+			Array.isArray(secondMessage.content)
+		)
 	) {
 		return false;
 	}
@@ -25,7 +27,7 @@ export function compareMessages(
 		const item1 = firstMessage.content[i];
 		const item2 = secondMessage.content[i];
 
-		if (!item1 || !item2) {
+		if (!(item1 && item2)) {
 			return false;
 		}
 

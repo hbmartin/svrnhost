@@ -91,7 +91,7 @@ describe("TokenBucketRateLimiter", () => {
 				bucketSize: 5,
 			});
 			// Bucket starts at 5, advance 10 seconds
-			vi.advanceTimersByTime(10000);
+			vi.advanceTimersByTime(10_000);
 			// Should still be capped at 5
 			expect(limiter.getAvailableTokens("key")).toBe(5);
 		});
@@ -280,7 +280,7 @@ describe("TokenBucketRateLimiter", () => {
 
 		it("does not run cleanup before cleanupAfterMs", () => {
 			const limiter = new TokenBucketRateLimiter({
-				cleanupAfterMs: 10000,
+				cleanupAfterMs: 10_000,
 			});
 			limiter.tryAcquire("key1");
 
@@ -342,7 +342,7 @@ describe("TokenBucketRateLimiter", () => {
 			expect(limiter.getAvailableTokens("key")).toBe(0);
 
 			// After 1000 seconds, should have 1 token
-			vi.advanceTimersByTime(999000);
+			vi.advanceTimersByTime(999_000);
 			expect(limiter.getAvailableTokens("key")).toBe(1);
 		});
 

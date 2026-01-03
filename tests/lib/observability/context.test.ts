@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
 	bindRequestContext,
 	captureRequestContext,
@@ -44,7 +44,7 @@ describe("lib/observability/context", () => {
 		});
 
 		it("uses provided startTime", () => {
-			const startTime = 1234567890;
+			const startTime = 1_234_567_890;
 			const ctx = createRequestContext({ service: "test", startTime });
 			expect(ctx.startTime).toBe(startTime);
 		});
@@ -349,7 +349,7 @@ describe("lib/observability/context", () => {
 
 		it("passes through optional startTime parameter", () => {
 			const request = new Request("https://example.test");
-			const startTime = 1700000000000;
+			const startTime = 1_700_000_000_000;
 			const ctx = createRequestContextFromRequest({
 				request,
 				service: "test",
@@ -389,7 +389,7 @@ describe("lib/observability/context", () => {
 				requestId: "test-id",
 				userId: "user-abc",
 				chatId: "chat-xyz",
-				startTime: 1234567890,
+				startTime: 1_234_567_890,
 			});
 
 			runWithContext(testContext, () => {
@@ -399,7 +399,7 @@ describe("lib/observability/context", () => {
 				expect(ctx?.requestId).toBe("test-id");
 				expect(ctx?.userId).toBe("user-abc");
 				expect(ctx?.chatId).toBe("chat-xyz");
-				expect(ctx?.startTime).toBe(1234567890);
+				expect(ctx?.startTime).toBe(1_234_567_890);
 			});
 		});
 	});
@@ -463,7 +463,7 @@ describe("lib/observability/context", () => {
 
 		it("passes startTime to context", () => {
 			const request = new Request("https://example.test");
-			const startTime = 9999999999;
+			const startTime = 9_999_999_999;
 
 			const result = runWithRequestContext(
 				{ request, service: "test", startTime },

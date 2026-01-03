@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createLogger, log } from "@/lib/observability/logger";
 import {
 	createRequestContext,
 	runWithContext,
 } from "@/lib/observability/context";
+import { createLogger, log } from "@/lib/observability/logger";
 
 // Mock Sentry
 const mockSetTag = vi.fn();

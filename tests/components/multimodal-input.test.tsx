@@ -10,14 +10,14 @@ vi.mock("sonner", () => ({
 	},
 }));
 
-type HarnessProps = {
+interface HarnessProps {
 	status?: "ready" | "submitted" | "streaming" | "error";
 	selectedModelId?: string;
 	sendMessage?: ReturnType<typeof vi.fn>;
 	stop?: ReturnType<typeof vi.fn>;
 	setMessagesSpy?: ReturnType<typeof vi.fn>;
 	initialMessages?: ChatMessage[];
-};
+}
 
 function Harness({
 	status = "ready",
@@ -94,9 +94,9 @@ describe("MultimodalInput", () => {
 		const setMessagesSpy = vi.fn();
 		render(
 			<Harness
+				setMessagesSpy={setMessagesSpy}
 				status="submitted"
 				stop={stop}
-				setMessagesSpy={setMessagesSpy}
 			/>,
 		);
 
