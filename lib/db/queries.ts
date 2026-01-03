@@ -1,6 +1,17 @@
 import "server-only";
 
-import { and, asc, count, desc, eq, gt, gte, lt, type SQL } from "drizzle-orm";
+import {
+	and,
+	asc,
+	count,
+	desc,
+	eq,
+	gt,
+	gte,
+	lt,
+	type SQL,
+	sql,
+} from "drizzle-orm";
 import { db } from "@/lib/db/index";
 import { ChatSDKError } from "../errors";
 import type { AppUsage } from "../usage";
@@ -783,24 +794,19 @@ export async function getFailedOutboundMessages({
 	limit?: number;
 }) {
 	try {
-		const allMessages = await db
+		return await db
 			.select()
 			.from(message)
-			.where(eq(message.role, "assistant"))
+			.where(
+				and(
+					eq(message.role, "assistant"),
+					sql`${message.metadata}->>'source' = ${source}`,
+					sql`${message.metadata}->>'direction' = 'outbound'`,
+					sql`${message.metadata}->>'sendStatus' = 'failed'`,
+				),
+			)
 			.orderBy(desc(message.createdAt))
-			.limit(limit * 10); // Fetch more to filter in JS since JSONB filtering varies by DB
-
-		// Filter messages with failed sendStatus from the specified source
-		return allMessages
-			.filter((msg) => {
-				const meta = msg.metadata as Record<string, unknown> | null;
-				return (
-					meta?.["source"] === source &&
-					meta?.["direction"] === "outbound" &&
-					meta?.["sendStatus"] === "failed"
-				);
-			})
-			.slice(0, limit);
+			.limit(limit);
 	} catch (error) {
 		if (error instanceof ChatSDKError) {
 			throw error;

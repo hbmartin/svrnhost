@@ -1202,6 +1202,55 @@ describe("Failed outbound messages queries", () => {
 
 		expect(failedMessages).toHaveLength(3);
 	});
+
+	it("should find failed messages even if they are not among the most recent", async () => {
+		const limit = 3;
+		const successfulMessageCount = limit * 10;
+		const messages: DBMessage[] = [];
+
+		// Create many successful messages that are newer
+		for (let i = 0; i < successfulMessageCount; i++) {
+			messages.push({
+				id: crypto.randomUUID(),
+				chatId: testChatId,
+				role: "assistant",
+				parts: [{ type: "text", text: `Successful ${i}` }],
+				attachments: [],
+				createdAt: new Date(Date.now() - i * 1000),
+				metadata: {
+					source: "whatsapp",
+					direction: "outbound",
+					sendStatus: "sent",
+				},
+			} as DBMessage);
+		}
+
+		// Create older failed messages
+		for (let i = 0; i < limit; i++) {
+			messages.push({
+				id: crypto.randomUUID(),
+				chatId: testChatId,
+				role: "assistant",
+				parts: [{ type: "text", text: `Failed ${i}` }],
+				attachments: [],
+				createdAt: new Date(Date.now() - (successfulMessageCount + i) * 1000),
+				metadata: {
+					source: "whatsapp",
+					direction: "outbound",
+					sendStatus: "failed",
+				},
+			} as DBMessage);
+		}
+
+		await saveMessages({ messages });
+
+		const failedMessages = await getFailedOutboundMessages({
+			source: "whatsapp",
+			limit,
+		});
+
+		expect(failedMessages).toHaveLength(limit);
+	});
 });
 
 describe("Seeded data tests", () => {
