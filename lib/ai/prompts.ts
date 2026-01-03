@@ -1,5 +1,10 @@
 import type { Geo } from "@vercel/functions";
+import { getPromptConfig } from "@/lib/infrastructure/edge-config";
 
+/**
+ * Fallback system prompt used when Edge Config is not configured or unavailable.
+ * This is the source of truth for the default prompt content.
+ */
 export const svrnHostSystemPrompt = `
 # SVRN Host System Prompt
 
@@ -93,3 +98,38 @@ export const titlePrompt = `\n
     - ensure it is not more than 80 characters long
     - the title should be a summary of the user's message
     - do not use quotes or colons`;
+
+/**
+ * Get the system prompt from Edge Config, falling back to hardcoded prompt.
+ * Use this for async contexts where you want dynamic prompt updates without redeployment.
+ */
+export async function getSvrnHostSystemPrompt(): Promise<string> {
+	const config = getPromptConfig();
+	const prompt = await config.getString("svrnHostSystemPrompt");
+	return prompt ?? svrnHostSystemPrompt;
+}
+
+/**
+ * Get the title prompt from Edge Config, falling back to hardcoded prompt.
+ */
+export async function getTitlePrompt(): Promise<string> {
+	const config = getPromptConfig();
+	const prompt = await config.getString("titlePrompt");
+	return prompt ?? titlePrompt;
+}
+
+/**
+ * Build the full system prompt asynchronously using Edge Config.
+ * Use this for new async contexts; the synchronous `systemPrompt` function
+ * is kept for backward compatibility.
+ */
+export async function buildSystemPrompt({
+	requestHints,
+}: {
+	selectedChatModel?: string;
+	requestHints: RequestHints;
+}): Promise<string> {
+	const basePrompt = await getSvrnHostSystemPrompt();
+	const requestPrompt = getRequestPromptFromHints(requestHints);
+	return `${basePrompt}\n\n${requestPrompt}`;
+}

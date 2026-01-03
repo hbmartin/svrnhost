@@ -1,10 +1,11 @@
 /** biome-ignore-all lint/suspicious/useAwait: tracing */
 import { SpanStatusCode, trace } from "@opentelemetry/api";
+import { waitUntil } from "@vercel/functions";
 import twilio, { RestException } from "twilio";
 import type { MessageListInstanceCreateOptions } from "twilio/lib/rest/api/v2010/account/message";
 import { WHATSAPP_LIMITS } from "@/lib/config/limits";
 import { getTwilioConfig } from "@/lib/config/server";
-import { whatsappRateLimiter } from "@/lib/rate-limiter";
+import { getWhatsAppRateLimiter } from "@/lib/infrastructure/redis";
 import { isNetworkError, isRetryableHttpStatus, withRetry } from "@/lib/retry";
 import {
 	logWhatsAppEvent,
@@ -374,25 +375,34 @@ async function sendSingleMessageWithRateLimitAndRetry(
 ): Promise<{ result: SendMessageResult; attempts: number }> {
 	const { to, correlation } = params;
 
-	// Acquire sender-level rate limit token (waits up to 5 seconds)
-	// Twilio's 80 MPS quota is per WhatsApp sender, not per recipient
-	try {
-		await whatsappRateLimiter.acquire(
-			WHATSAPP_SENDER_RATE_LIMIT_KEY,
-			WHATSAPP_LIMITS.senderRateLimitMaxWaitMs,
+	// Check distributed rate limit (Twilio's 80 MPS quota per WhatsApp sender)
+	const rateLimiter = getWhatsAppRateLimiter();
+	const rateLimitResult = await rateLimiter.limit(
+		WHATSAPP_SENDER_RATE_LIMIT_KEY,
+	);
+
+	// Handle pending analytics promise for serverless (fire-and-forget)
+	if (rateLimitResult.pending) {
+		waitUntil(rateLimitResult.pending);
+	}
+
+	if (!rateLimitResult.success) {
+		const resetDate = new Date(rateLimitResult.reset);
+		const error = new Error(
+			`Rate limit exceeded. Resets at ${resetDate.toISOString()}`,
 		);
-	} catch (rateLimitError) {
 		logWhatsAppEvent("error", {
 			event: "whatsapp.outbound.rate_limit_failed",
 			direction: "outbound",
 			...correlation,
 			toNumber: to,
-			error:
-				rateLimitError instanceof Error
-					? rateLimitError.message
-					: String(rateLimitError),
+			error: error.message,
+			details: {
+				remaining: rateLimitResult.remaining,
+				reset: rateLimitResult.reset,
+			},
 		});
-		throw rateLimitError;
+		throw error;
 	}
 
 	// Send with retry
